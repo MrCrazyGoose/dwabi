@@ -1,0 +1,396 @@
+import express from 'express';
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { hashPassword, verifyPassword, signToken, verifyToken, rateLimiter } from './auth.js';
+import { getCompetition, isWithin } from './competition.js';
+import { weekKey, questionsForWeek, publicQuestion } from './quizBank.js';
+import { SCHOOLS, getSchool } from '../shared/schools.js';
+import { getItem, searchItems, decide } from '../shared/rules.js';
+import { POINTS, LIMITS, BATCH_CHECKLIST, BATCH_FIELDS } from '../shared/points.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const DISPLAY_NAME_RE = /^[\p{L}\p{N} ._'-]{2,30}$/u;
+
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+function publicUser(user) {
+  const school = getSchool(user.schoolId);
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    grade: user.grade,
+    school: school ? { id: school.id, name: school.name, cluster: school.cluster } : null,
+    createdAt: user.createdAt,
+  };
+}
+
+export function createApp({ store, secret, env = process.env, staticDir } = {}) {
+  if (!store) throw new Error('createApp requires a store');
+  if (!secret) throw new Error('createApp requires a secret');
+
+  const app = express();
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1);
+  app.use(express.json({ limit: '32kb' }));
+
+  // Serialize point-awarding requests per user so daily caps and the
+  // one-quiz-per-week rule cannot be bypassed with parallel requests.
+  const userLocks = new Map();
+  async function withUserLock(userId, fn) {
+    const prev = userLocks.get(userId) || Promise.resolve();
+    let release;
+    const current = new Promise((r) => (release = r));
+    const chained = prev.then(() => current);
+    userLocks.set(userId, chained);
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      release();
+      if (userLocks.get(userId) === chained) userLocks.delete(userId);
+    }
+  }
+
+  const requireAuth = wrap(async (req, res, next) => {
+    const header = req.get('authorization') || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    const userId = verifyToken(token, secret);
+    const user = userId && (await store.getUserById(userId));
+    if (!user) throw new HttpError(401, 'Please log in.');
+    req.user = user;
+    next();
+  });
+
+  const authLimiter = rateLimiter({ windowMs: 10 * 60 * 1000, max: Number(env.AUTH_RATE_LIMIT || 30) });
+
+  // ---------- Public reference data ----------
+
+  app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+  app.get('/api/schools', (req, res) => res.json({ schools: SCHOOLS }));
+
+  app.get('/api/competition', (req, res) => res.json({ competition: getCompetition(env) }));
+
+  app.get('/api/rules', (req, res) => {
+    res.json({ items: searchItems(req.query.q || '', Number(req.query.limit) || 60) });
+  });
+
+  app.get('/api/rules/:id', (req, res) => {
+    const verdict = decide(req.params.id);
+    if (!verdict) throw new HttpError(404, 'Unknown item');
+    res.json(verdict);
+  });
+
+  // ---------- Auth ----------
+
+  app.post(
+    '/api/auth/register',
+    authLimiter,
+    wrap(async (req, res) => {
+      const { username, password, displayName, schoolId, grade } = req.body || {};
+      if (!USERNAME_RE.test(username || '')) {
+        throw new HttpError(400, 'Username must be 3–20 letters, numbers or underscores.');
+      }
+      if (typeof password !== 'string' || password.length < 8 || password.length > 200) {
+        throw new HttpError(400, 'Password must be at least 8 characters.');
+      }
+      const name = String(displayName || '').trim();
+      if (!DISPLAY_NAME_RE.test(name)) {
+        throw new HttpError(400, 'Display name must be 2–30 characters (letters, numbers, spaces).');
+      }
+      if (!getSchool(schoolId)) throw new HttpError(400, 'Please choose your school or neighborhood.');
+      const g = grade === undefined || grade === null || grade === '' ? null : Number(grade);
+      if (g !== null && !(Number.isInteger(g) && g >= 6 && g <= 12)) {
+        throw new HttpError(400, 'Grade must be between 6 and 12.');
+      }
+      let user;
+      try {
+        user = await store.createUser({
+          username,
+          displayName: name,
+          passwordHash: await hashPassword(password),
+          schoolId,
+          grade: g,
+        });
+      } catch (err) {
+        if (err.code === 'USERNAME_TAKEN') throw new HttpError(409, 'That username is taken.');
+        throw err;
+      }
+      res.status(201).json({ token: signToken(user.id, secret), user: publicUser(user) });
+    }),
+  );
+
+  app.post(
+    '/api/auth/login',
+    authLimiter,
+    wrap(async (req, res) => {
+      const { username, password } = req.body || {};
+      const user = username && (await store.getUserByUsername(String(username)));
+      if (!user || !(await verifyPassword(String(password || ''), user.passwordHash))) {
+        throw new HttpError(401, 'Incorrect username or password.');
+      }
+      res.json({ token: signToken(user.id, secret), user: publicUser(user) });
+    }),
+  );
+
+  // ---------- Dashboard ----------
+
+  app.get(
+    '/api/me',
+    requireAuth,
+    wrap(async (req, res) => {
+      const competition = getCompetition(env);
+      const events = await store.listUserEvents(req.user.id);
+      const since = new Date(Date.now() - DAY_MS).toISOString();
+      const breakdown = { scan: 0, quiz: 0, batch: 0 };
+      let allTime = 0;
+      let competitionPoints = 0;
+      let scansCount = 0;
+      let contaminationCaught = 0;
+      let scanPointsToday = 0;
+      let batchesToday = 0;
+      for (const e of events) {
+        allTime += e.points;
+        breakdown[e.type] = (breakdown[e.type] || 0) + e.points;
+        if (isWithin(e.createdAt, competition)) competitionPoints += e.points;
+        if (e.type === 'scan') {
+          scansCount++;
+          if (e.meta?.contaminationFound) contaminationCaught++;
+          if (e.createdAt >= since) scanPointsToday += e.points;
+        }
+        if (e.type === 'batch' && e.createdAt >= since) batchesToday++;
+      }
+
+      const board = await store.leaderboardStudents({ start: competition.start, end: competition.end, limit: 10000 });
+      const rankIndex = board.findIndex((r) => r.id === req.user.id);
+
+      const week = weekKey();
+      const quizThisWeek = events.find((e) => e.type === 'quiz' && e.meta?.week === week);
+
+      res.json({
+        user: publicUser(req.user),
+        stats: {
+          allTime,
+          competitionPoints,
+          rank: rankIndex === -1 ? null : rankIndex + 1,
+          rankedStudents: board.length,
+          breakdown,
+          scansCount,
+          contaminationCaught,
+          scanPointsRemainingToday: Math.max(0, LIMITS.SCAN_POINTS_PER_DAY - scanPointsToday),
+          batchesRemainingToday: Math.max(0, LIMITS.BATCHES_PER_DAY - batchesToday),
+          quizTakenThisWeek: Boolean(quizThisWeek),
+        },
+        recent: events.slice(0, 15),
+      });
+    }),
+  );
+
+  // ---------- Earning points ----------
+
+  app.post(
+    '/api/scans',
+    requireAuth,
+    wrap(async (req, res) => {
+      const { itemId, contaminationFound, level, source } = req.body || {};
+      const item = getItem(itemId);
+      if (!item) throw new HttpError(400, 'Unknown item.');
+
+      // A bonus is only possible for items that have a contamination check
+      // or a "never in the blue bin" alert.
+      const bonusEligible = Boolean(item.contaminationCheck || item.alert);
+      const caught = Boolean(contaminationFound) && bonusEligible;
+
+      const result = await withUserLock(req.user.id, async () => {
+        const since = new Date(Date.now() - DAY_MS).toISOString();
+        const today = (await store.listUserEvents(req.user.id, { since })).filter((e) => e.type === 'scan');
+        const usedToday = today.reduce((a, e) => a + e.points, 0);
+        const remaining = Math.max(0, LIMITS.SCAN_POINTS_PER_DAY - usedToday);
+        const earned = Math.min(remaining, POINTS.SCAN + (caught ? POINTS.CONTAMINATION_BONUS : 0));
+        const event = await store.addEvent({
+          userId: req.user.id,
+          type: 'scan',
+          points: earned,
+          meta: {
+            itemId: item.id,
+            itemName: item.name,
+            contaminationFound: caught,
+            level: ['clean', 'light', 'heavy', 'unknown'].includes(level) ? level : null,
+            source: ['camera', 'upload', 'search'].includes(source) ? source : null,
+          },
+        });
+        return { event, capped: earned < POINTS.SCAN + (caught ? POINTS.CONTAMINATION_BONUS : 0) };
+      });
+
+      res.status(201).json({ points: result.event.points, capped: result.capped, event: result.event });
+    }),
+  );
+
+  app.get(
+    '/api/quiz/current',
+    requireAuth,
+    wrap(async (req, res) => {
+      const week = weekKey();
+      const questions = questionsForWeek(week, LIMITS.QUIZ_QUESTIONS);
+      const events = await store.listUserEvents(req.user.id);
+      const attempt = events.find((e) => e.type === 'quiz' && e.meta?.week === week);
+      res.json({
+        week,
+        questions: questions.map(publicQuestion),
+        attempt: attempt ? { points: attempt.points, ...attempt.meta } : null,
+      });
+    }),
+  );
+
+  app.post(
+    '/api/quiz/submit',
+    requireAuth,
+    wrap(async (req, res) => {
+      const week = weekKey();
+      const questions = questionsForWeek(week, LIMITS.QUIZ_QUESTIONS);
+      const answers = (req.body && req.body.answers) || {};
+      if (typeof answers !== 'object') throw new HttpError(400, 'Invalid answers.');
+
+      const result = await withUserLock(req.user.id, async () => {
+        const events = await store.listUserEvents(req.user.id);
+        if (events.some((e) => e.type === 'quiz' && e.meta?.week === week)) {
+          throw new HttpError(409, 'You already took this week\'s quiz. Come back next week!');
+        }
+        const review = questions.map((q) => {
+          const chosen = Number.isInteger(answers[q.id]) ? answers[q.id] : null;
+          return { id: q.id, chosen, answer: q.answer, correct: chosen === q.answer, explanation: q.explanation };
+        });
+        const correct = review.filter((r) => r.correct).length;
+        const points =
+          correct * POINTS.QUIZ_PER_CORRECT + (correct === questions.length ? POINTS.QUIZ_PERFECT_BONUS : 0);
+        await store.addEvent({
+          userId: req.user.id,
+          type: 'quiz',
+          points,
+          meta: { week, correct, total: questions.length, review },
+        });
+        return { week, correct, total: questions.length, points, review };
+      });
+
+      res.status(201).json(result);
+    }),
+  );
+
+  app.post(
+    '/api/batches',
+    requireAuth,
+    wrap(async (req, res) => {
+      const { counts = {}, checklist = [], note } = req.body || {};
+      const cleanCounts = {};
+      let totalItems = 0;
+      for (const f of BATCH_FIELDS) {
+        const n = Number(counts[f.id] || 0);
+        if (!Number.isInteger(n) || n < 0 || n > 500) throw new HttpError(400, `Invalid count for ${f.label}.`);
+        cleanCounts[f.id] = n;
+        totalItems += n;
+      }
+      if (totalItems < 3) throw new HttpError(400, 'A batch needs at least 3 sorted items.');
+      const checked = BATCH_CHECKLIST.map((c) => c.id).filter((id) => Array.isArray(checklist) && checklist.includes(id));
+      if (!checked.includes('no-bags')) {
+        throw new HttpError(400, 'Before logging: recyclables must be loose in the bin — no plastic bags!');
+      }
+
+      const event = await withUserLock(req.user.id, async () => {
+        const since = new Date(Date.now() - DAY_MS).toISOString();
+        const recent = (await store.listUserEvents(req.user.id, { since })).filter((e) => e.type === 'batch');
+        if (recent.length >= LIMITS.BATCHES_PER_DAY) {
+          throw new HttpError(429, `You can log up to ${LIMITS.BATCHES_PER_DAY} batches per day. Great work — come back tomorrow!`);
+        }
+        const points = POINTS.BATCH + (checked.length === BATCH_CHECKLIST.length ? POINTS.BATCH_CHECKLIST_BONUS : 0);
+        return store.addEvent({
+          userId: req.user.id,
+          type: 'batch',
+          points,
+          meta: { counts: cleanCounts, totalItems, checklist: checked, note: String(note || '').slice(0, 200) },
+        });
+      });
+
+      res.status(201).json({ points: event.points, event });
+    }),
+  );
+
+  // ---------- Leaderboard ----------
+
+  app.get(
+    '/api/leaderboard',
+    wrap(async (req, res) => {
+      const competition = getCompetition(env);
+      const window = { start: competition.start, end: competition.end };
+      const [students, schoolRows] = await Promise.all([
+        store.leaderboardStudents({ ...window, limit: 50 }),
+        store.pointsBySchool(window),
+      ]);
+
+      const schools = schoolRows
+        .map((r) => {
+          const s = getSchool(r.schoolId);
+          return {
+            id: r.schoolId,
+            name: s ? s.name : r.schoolId,
+            cluster: s ? s.cluster : 'Unknown',
+            level: s ? s.level : null,
+            points: r.points,
+            students: r.students,
+            perStudent: Math.round(r.points / Math.max(1, r.students)),
+          };
+        })
+        .sort((a, b) => b.perStudent - a.perStudent || b.points - a.points);
+
+      const clusterMap = new Map();
+      for (const s of schools) {
+        const c = clusterMap.get(s.cluster) || { name: s.cluster, points: 0, students: 0, schools: 0 };
+        c.points += s.points;
+        c.students += s.students;
+        c.schools += 1;
+        clusterMap.set(s.cluster, c);
+      }
+      const clusters = [...clusterMap.values()]
+        .map((c) => ({ ...c, perStudent: Math.round(c.points / Math.max(1, c.students)) }))
+        .sort((a, b) => b.points - a.points);
+
+      res.json({
+        competition,
+        students: students.map((s, i) => {
+          const school = getSchool(s.schoolId);
+          return { rank: i + 1, displayName: s.displayName, school: school ? school.name : null, points: s.points, id: s.id };
+        }),
+        schools,
+        clusters,
+      });
+    }),
+  );
+
+  // ---------- Static frontend (production) ----------
+
+  if (staticDir && existsSync(staticDir)) {
+    app.use(express.static(staticDir, { index: false, maxAge: '1h' }));
+    app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(staticDir, 'index.html')));
+  }
+
+  app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, req, res, next) => {
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+    if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON.' });
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong.' });
+  });
+
+  return app;
+}
+

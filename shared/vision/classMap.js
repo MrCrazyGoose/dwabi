@@ -1,0 +1,58 @@
+// Maps MobileNet (ImageNet) class names to EcoSort rule item ids.
+//
+// MobileNet returns labels such as "pop bottle, soda bottle" or
+// "pizza, pizza pie". Each rule below is tested against the label; the first
+// match wins, so put more specific patterns first.
+
+const LABEL_RULES = [
+  [/\bplastic bag\b/, 'plastic-bag'],
+  [/\bpizza\b/, 'pizza-box'],
+  [/\bcarton\b/, 'cardboard-box'],
+  [/\bcrate\b/, 'cardboard-box'],
+  [/\bpacket\b/, 'chip-bag'],
+  [/\benvelope\b|\bmailbag\b/, 'office-paper'],
+  [/\bcomic book\b|\bbook jacket\b|\bmenu\b|\bcrossword\b/, 'newspaper'],
+  [/\bbinder\b/, 'books'],
+  [/\bpaper towel\b|\btoilet tissue\b|\bhandkerchief\b/, 'paper-towel'],
+  [/\bwater bottle\b|\bpop bottle\b/, 'plastic-bottle'],
+  [/\bwater jug\b|\bpill bottle\b|\blotion\b|\bsoap dispenser\b|\bsunscreen\b/, 'plastic-jug'],
+  [/\bbeer bottle\b|\bwine bottle\b|\bwhiskey jug\b|\bperfume\b/, 'glass-bottle'],
+  [/\bhair spray\b/, 'aerosol-can'],
+  [/\bmilk can\b/, 'steel-can'],
+  [/\bbeer glass\b|\bgoblet\b|\bcoffee mug\b|\bmeasuring cup\b|\bmixing bowl\b|\bsoup bowl\b|\bplate\b/, 'drinking-glass'],
+  [/\bcup\b/, 'paper-cup'],
+  [/\btray\b/, 'plastic-container'],
+  [/\bcellular telephone\b|\bipod\b|\bhand-held computer\b|\bdial telephone\b/, 'phone'],
+  [/\blaptop\b|\bnotebook\b|\bdesktop computer\b|\bcomputer keyboard\b|\bmouse\b|\bprinter\b|\bmodem\b|\bmonitor\b/, 'computer'],
+  [/\btelevision\b|\bscreen\b/, 'tv'],
+  [/\bremote control\b|\belectric fan\b|\bjoystick\b|\btoaster\b|\bhand blower\b|\bloudspeaker\b/, 'small-electronics'],
+  [/\bsyringe\b/, 'sharps'],
+  [/\bfrying pan\b|\bwok\b|\bdutch oven\b|\bcaldron\b|\bcrock pot\b|\bbicycle\b/, 'pots-pans'],
+  [/\bjersey\b|\bsweatshirt\b|\bjean\b|\brunning shoe\b|\bsock\b|\bcardigan\b|\bbath towel\b/, 'clothing'],
+  [/\bdiaper\b/, 'diaper'],
+  [/\bhose\b/, 'garden-hose'],
+  [/\bjack-o'-lantern\b/, 'yard-trim'],
+  [
+    /\bbanana\b|\borange\b|\bgranny smith\b|\blemon\b|\bpineapple\b|\bstrawberry\b|\bbagel\b|\bpretzel\b|\bcheeseburger\b|\bhotdog\b|\bfrench loaf\b|\bbroccoli\b|\bcucumber\b|\bcabbage\b|\bmashed potato\b|\bburrito\b|\bguacamole\b|\bcarbonara\b|\bpotpie\b|\bmeat loaf\b|\btrifle\b|\bice cream\b/,
+    'food-scraps',
+  ],
+];
+
+export function mapLabelToItem(label) {
+  const l = String(label || '').toLowerCase();
+  for (const [re, id] of LABEL_RULES) {
+    if (re.test(l)) return id;
+  }
+  return null;
+}
+
+// predictions: [{ className, probability }] sorted by probability.
+// Returns the best matching item id plus the prediction that produced it.
+export function matchPredictions(predictions, minProbability = 0.08) {
+  for (const p of predictions || []) {
+    if (p.probability < minProbability) continue;
+    const itemId = mapLabelToItem(p.className);
+    if (itemId) return { itemId, label: p.className, probability: p.probability };
+  }
+  return null;
+}
