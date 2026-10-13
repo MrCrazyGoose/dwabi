@@ -66,6 +66,12 @@ test('MobileNet labels map to rule items', () => {
   assert.equal(mapLabelToItem('laptop, laptop computer'), 'computer');
   assert.equal(mapLabelToItem('coffee mug'), 'drinking-glass');
   assert.equal(mapLabelToItem('banana'), 'food-scraps');
+  for (const food of ['spaghetti squash', 'butternut squash', 'acorn squash', 'jackfruit', 'zucchini, courgette',
+    'bell pepper', 'corn', 'cauliflower', 'mushroom', 'fig', 'pomegranate', 'ice lolly, lolly, lollipop, popsicle']) {
+    assert.equal(mapLabelToItem(food), 'food-scraps', food);
+  }
+  assert.equal(mapLabelToItem('acorn'), 'yard-trim');
+  assert.equal(mapLabelToItem('hay'), 'yard-trim');
   assert.equal(mapLabelToItem('tabby, tabby cat'), null);
 });
 
@@ -76,6 +82,14 @@ test('matchPredictions skips unmapped and low-confidence labels', () => {
   ]);
   assert.deepEqual(m, { itemId: 'plastic-bottle', label: 'water bottle', probability: 0.3 });
   assert.equal(matchPredictions([{ className: 'water bottle', probability: 0.01 }]), null);
+});
+
+test('a confident food prediction is auto-selected (spaghetti squash at 50%)', () => {
+  const m = matchPredictions([
+    { className: 'spaghetti squash', probability: 0.5 },
+    { className: 'jackfruit, jak, jack', probability: 0.09 },
+  ]);
+  assert.equal(m.itemId, 'food-scraps');
 });
 
 test('a low-confidence guess is not auto-selected (soda can read as toilet tissue)', () => {
