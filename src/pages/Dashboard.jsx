@@ -2,12 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 
-const TYPE_LABEL = { scan: 'Scan', quiz: 'Quiz', batch: 'Batch' };
+const TYPE_LABEL = { scan: 'Scan', quiz: 'Quiz', batch: 'Batch', bincheck: 'Bin' };
 
 function describe(e) {
   if (e.type === 'scan') return `${e.meta.itemName}${e.meta.contaminationFound ? ', problem caught' : ''}`;
   if (e.type === 'quiz') return `Weekly quiz, ${e.meta.correct} of ${e.meta.total} right`;
   if (e.type === 'batch') return `Household batch, ${e.meta.totalItems} items`;
+  if (e.type === 'bincheck') {
+    return e.meta.verdict === 'ready'
+      ? `Bin night check, ready${e.meta.fixed ? ' after fixing' : ''}, ${e.meta.streak}-week streak`
+      : `Bin night check, ${e.meta.problems.length} to fix`;
+  }
   return e.type;
 }
 
@@ -40,11 +45,12 @@ export default function Dashboard() {
         <Stat label="Season points" value={stats.competitionPoints} sub={`${stats.allTime} all time`} />
         <Stat label="Rank" value={stats.rank ? stats.rank : '-'} sub={stats.rank ? `of ${stats.rankedStudents}` : 'Earn a point to get ranked'} />
         <Stat label="Items scanned" value={stats.scansCount} sub={`${stats.contaminationCaught} problems caught`} />
-        <Stat label="Scan points left today" value={stats.scanPointsRemainingToday} />
+        <Stat label="Bin night streak" value={stats.binStreak} sub={stats.binCheckedThisPickup ? 'This week is done' : 'Weeks in a row'} />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         {[
+          ['/bin-night', 'Bin night', data.pickup ? `Next pickup ${data.pickup.label}.` : 'Set your pickup day.'],
           ['/scan', 'Scan an item', 'Points for every item, more for catching problems.'],
           ['/quiz', 'Weekly quiz', stats.quizTakenThisWeek ? 'Done this week.' : 'Open now. Up to 60 points.'],
           ['/log', 'Log a batch', `${stats.batchesRemainingToday} left today.`],

@@ -51,7 +51,7 @@ export default function Home() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link to="/scan" className="btn-primary">Scan an item</Link>
-            <Link to="/guide" className="btn-secondary">Look something up</Link>
+            <Link to="/bin-night" className="btn-secondary">Check my bin</Link>
           </div>
         </div>
         <WarningSign title="The one most people get wrong">
@@ -81,6 +81,7 @@ export default function Home() {
                 ['Weekly quiz, per right answer', `+${POINTS.QUIZ_PER_CORRECT}`],
                 ['All five quiz answers right', `+${POINTS.QUIZ_PERFECT_BONUS} more`],
                 ['Log a sorted batch from home', `+${POINTS.BATCH} to ${POINTS.BATCH + POINTS.BATCH_CHECKLIST_BONUS}`],
+                ['Clean bin on bin night', `+${POINTS.BIN_CHECK}, plus streak`],
               ].map(([what, pts]) => (
                 <tr key={what}>
                   <td className="px-5 py-2.5">{what}</td>

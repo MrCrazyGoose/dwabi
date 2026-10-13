@@ -59,6 +59,19 @@ export function cropToGuide(video, maxSide = 480) {
   return canvas;
 }
 
+// JPEG data URL for sending a photo to the server's AI check. 1024px on the
+// long side keeps uploads small while leaving enough detail to spot a bag
+// or a grease stain.
+export function toJpegDataUrl(canvas, maxSide = 1024, quality = 0.85) {
+  const scale = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
+  if (scale === 1) return canvas.toDataURL('image/jpeg', quality);
+  const out = document.createElement('canvas');
+  out.width = Math.round(canvas.width * scale);
+  out.height = Math.round(canvas.height * scale);
+  out.getContext('2d').drawImage(canvas, 0, 0, out.width, out.height);
+  return out.toDataURL('image/jpeg', quality);
+}
+
 export function loadImageFile(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);

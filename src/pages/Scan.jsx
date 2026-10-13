@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { decide, getItem } from '../../shared/rules.js';
-import { matchPredictions, suggestItems } from '../../shared/vision/classMap.js';
+import { QUICK_PICKS, matchPredictions, suggestItems } from '../../shared/vision/classMap.js';
 import { analyzeImage } from '../../shared/vision/contamination.js';
 import { POINTS } from '../../shared/points.js';
-import { classify, cropToGuide, loadModel, loadImageFile, toCanvas } from '../lib/vision.js';
+import { classify, cropToGuide, loadModel, loadImageFile, toCanvas, toJpegDataUrl } from '../lib/vision.js';
+import { useConfig } from '../lib/config.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import ItemSearch from '../components/ItemSearch.jsx';
@@ -104,19 +105,24 @@ export default function Scan() {
   const [liveLabel, setLiveLabel] = useState(null);
   const [logState, setLogState] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [ai, setAi] = useState(null); // result from the server's AI photo check
+  const [aiError, setAiError] = useState(null);
+  const config = useConfig();
+  const useAi = Boolean(config?.photoChecks);
   const overlayRef = useRef(null);
   const fileRef = useRef(null);
 
   const cameraActive = mode === 'camera' && !capture;
   const { videoRef, error: cameraError, ready: cameraReady } = useCamera(cameraActive);
 
-  // Start downloading the model as soon as the page opens.
+  // Without the server's AI check, download the on-device model instead.
   useEffect(() => {
+    if (!config || useAi) return;
     setModelState('loading');
     loadModel()
       .then(() => setModelState('ready'))
       .catch(() => setModelState('error'));
-  }, []);
+  }, [config, useAi]);
 
   // Live preview label while the camera is running.
   useEffect(() => {
@@ -143,14 +149,18 @@ export default function Scan() {
 
   const item = itemId ? getItem(itemId) : null;
 
+  // The AI result applies only while its item is the one selected.
+  const aiForItem = ai && item && ai.itemId === item.id ? ai : null;
+  const aiLevel = aiForItem && ['clean', 'light', 'heavy'].includes(aiForItem.contamination) ? aiForItem.contamination : null;
+
   const analysis = useMemo(() => {
-    if (!capture || !item?.contaminationCheck) return null;
+    if (!capture || !item?.contaminationCheck || ai) return null;
     const c = capture.canvas;
     const imageData = c.getContext('2d').getImageData(0, 0, c.width, c.height);
     return analyzeImage(imageData, item.contaminationCheck);
-  }, [capture, item]);
+  }, [capture, item, ai]);
 
-  const level = override || analysis?.level || null;
+  const level = override || aiLevel || analysis?.level || null;
   const verdict = useMemo(() => (itemId ? decide(itemId, level ? { level } : null) : null), [itemId, level]);
 
   useEffect(() => {
@@ -164,19 +174,28 @@ export default function Scan() {
     setItemId(null);
     setOverride(null);
     setLogState(null);
+    setAi(null);
+    setAiError(null);
     setBusy(true);
     try {
-      const preds = await classify(canvas, 5);
-      setPredictions(preds);
-      const m = matchPredictions(preds);
-      setMatch(m);
-      if (m) setItemId(m.itemId);
-    } catch {
-      setModelState('error');
+      if (useAi) {
+        const out = await api('/vision/item', { method: 'POST', body: { image: toJpegDataUrl(canvas) } });
+        setAi(out);
+        if (out.itemId && out.confidence !== 'low' && out.photoQuality === 'good') setItemId(out.itemId);
+      } else {
+        const preds = await classify(canvas, 5);
+        setPredictions(preds);
+        const m = matchPredictions(preds);
+        setMatch(m);
+        if (m) setItemId(m.itemId);
+      }
+    } catch (err) {
+      if (useAi) setAiError(err.message);
+      else setModelState('error');
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [useAi]);
 
   const takePhoto = () => {
     const video = videoRef.current;
@@ -203,6 +222,8 @@ export default function Scan() {
     setItemId(null);
     setOverride(null);
     setLogState(null);
+    setAi(null);
+    setAiError(null);
   };
 
   const chooseItem = (it) => {
@@ -229,7 +250,16 @@ export default function Scan() {
   };
 
   const needsManualLevel =
-    item?.contaminationCheck && (analysis?.level === 'unknown' || item.contaminationCheck === 'residue');
+    item?.contaminationCheck &&
+    !aiLevel &&
+    (!capture || analysis?.level === 'unknown' || item.contaminationCheck === 'residue');
+
+  const PHOTO_HINTS = {
+    too_dark: 'The photo is too dark. Try again with more light.',
+    too_blurry: 'The photo is blurry. Hold still and try again.',
+    too_far: 'The item is too small in the photo. Move closer.',
+    no_item: 'No item was found in the photo.',
+  };
 
   return (
     <div className="space-y-6">
@@ -309,12 +339,33 @@ export default function Scan() {
               )}
               <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
               <span className="ml-auto text-sm text-ash">
-                {modelState === 'loading' && 'Loading the recognition model...'}
-                {modelState === 'ready' && 'Recognition ready'}
-                {modelState === 'error' && 'Recognition unavailable. Pick the item yourself.'}
+                {useAi && 'Photos are checked by AI, not stored'}
+                {!useAi && modelState === 'loading' && 'Loading the recognition model...'}
+                {!useAi && modelState === 'ready' && 'Recognition ready'}
+                {!useAi && modelState === 'error' && 'Recognition unavailable. Pick the item yourself.'}
               </span>
             </div>
           </div>
+
+          {aiForItem && item?.contaminationCheck && !override && (
+            <div className="panel p-4">
+              <h3 className="text-xl">Contamination check</h3>
+              {aiForItem.findings.length === 0 ? (
+                <p className="mt-1">
+                  {item.contaminationCheck === 'grease' ? 'No grease or food stains spotted.' : 'Nothing left inside that we can see. Rinse it anyway.'}
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-1">
+                  {aiForItem.findings.map((f) => (
+                    <li key={f} className="flex gap-2">
+                      <span className="mt-2 h-2 w-2 shrink-0 bg-stop" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {capture && analysis && !override && analysis.level !== 'unknown' && (
             <div className="panel p-4">
@@ -362,11 +413,14 @@ export default function Scan() {
                 Recognized as "{match.label.split(',')[0]}" ({Math.round(match.probability * 100)}% sure).
               </p>
             )}
+            {aiForItem && <p className="mt-2 text-sm text-ash">Recognized as {aiForItem.whatISee}.</p>}
+            {ai && PHOTO_HINTS[ai.photoQuality] && !item && <p className="mt-2 font-medium text-stop">{PHOTO_HINTS[ai.photoQuality]}</p>}
+            {aiError && <p className="mt-2 font-medium text-stop">{aiError}</p>}
             {capture && !busy && !match && !item && (
               <div className="mt-4">
                 <p className="font-display text-lg font-bold uppercase">Not sure. Which one is it?</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {suggestItems(predictions).map((id) => (
+                  {(ai ? [...new Set([ai.itemId, ...QUICK_PICKS].filter(Boolean))].slice(0, 8) : suggestItems(predictions)).map((id) => (
                     <button key={id} type="button" className="btn-secondary !px-3 !py-1 !text-base" onClick={() => chooseItem(getItem(id))}>
                       {getItem(id).name.replace(/ \(.*\)$/, '')}
                     </button>
