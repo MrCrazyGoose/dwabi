@@ -60,6 +60,14 @@ export class FileStore {
     return this.data.users.find((u) => u.username.toLowerCase() === key) || null;
   }
 
+  async updateUser(id, patch) {
+    const user = this.data.users.find((u) => u.id === id);
+    if (!user) return null;
+    Object.assign(user, patch);
+    await this.persist();
+    return user;
+  }
+
   async addEvent({ userId, type, points, meta = {}, createdAt = new Date().toISOString() }) {
     const event = { id: randomUUID(), userId, type, points, meta, createdAt };
     this.data.events.push(event);

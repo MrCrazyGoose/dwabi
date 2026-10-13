@@ -20,6 +20,8 @@ BEGIN
   END IF;
 END $$;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pickup_day INTEGER;
+
 CREATE TABLE IF NOT EXISTS point_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -39,6 +41,7 @@ function toUser(row) {
     username: row.username,
     displayName: row.display_name,
     passwordHash: row.password_hash,
+    pickupDay: row.pickup_day ?? null,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -89,6 +92,13 @@ export class PgStore {
   async getUserByUsername(username) {
     const { rows } = await this.pool.query('SELECT * FROM users WHERE lower(username) = lower($1)', [username]);
     return toUser(rows[0]);
+  }
+
+  async updateUser(id, patch) {
+    if ('pickupDay' in patch) {
+      await this.pool.query('UPDATE users SET pickup_day = $2 WHERE id = $1', [id, patch.pickupDay]);
+    }
+    return this.getUserById(id);
   }
 
   async addEvent({ userId, type, points, meta = {}, createdAt }) {

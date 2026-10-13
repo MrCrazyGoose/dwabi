@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
+import { BRAND_DISCLAIMER } from '../../shared/brand.js';
 
 function AuthPanel({ title, children }) {
   return (
@@ -96,6 +97,7 @@ export function Register() {
         {error && <p className="text-stop">{error}</p>}
         <button className="btn-primary w-full" disabled={busy}>{busy ? 'Creating account...' : 'Create account'}</button>
         <p className="text-center text-sm text-ash">No email, phone number or full name needed.</p>
+        <p className="text-center text-sm text-ash">{BRAND_DISCLAIMER}</p>
         <p className="text-center text-sm">
           Have an account? <Link to="/login" className="font-semibold underline">Log in</Link>
         </p>

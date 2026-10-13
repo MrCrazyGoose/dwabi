@@ -7,6 +7,7 @@ import Leaderboard from './pages/Leaderboard.jsx';
 import Quiz from './pages/Quiz.jsx';
 import LogBatch from './pages/LogBatch.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import BinNight from './pages/BinNight.jsx';
 import { Login, Register } from './pages/Auth.jsx';
 import { useAuth } from './lib/auth.jsx';
 
@@ -24,6 +25,7 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="scan" element={<Scan />} />
         <Route path="guide" element={<Guide />} />
+        <Route path="bin-night" element={<BinNight />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="quiz" element={<RequireAuth><Quiz /></RequireAuth>} />
         <Route path="log" element={<RequireAuth><LogBatch /></RequireAuth>} />
