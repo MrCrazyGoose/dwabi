@@ -1,7 +1,7 @@
-# EcoSort
+# MoCoBin
 
-EcoSort is a web app that cuts recycling contamination in **Montgomery County, Maryland (Congressional District 8)**.
-Young people scan an item with their phone camera or a photo, and EcoSort:
+MoCoBin is a web app that cuts recycling contamination in **Montgomery County, Maryland (Congressional District 8)**.
+Young people scan an item with their phone camera or a photo, and MoCoBin:
 
 1. **identifies the item** and **checks it for contamination** (grease on cardboard and pizza boxes, food left in
    containers, banned items such as plastic bags) with an AI vision model,
@@ -36,10 +36,17 @@ Players earn points on a seasonal individual leaderboard.
 - **Backend:** Node.js and Express. Passwords are hashed with scrypt and logins use HMAC-signed tokens (no extra crypto dependencies).
 - **Database:** PostgreSQL when `DATABASE_URL` is set. Otherwise a JSON file store is used, so there is zero setup for local development.
 
+MoCoBin is an independent youth project and is not run by Montgomery County Government.
+
 ## Design
 
-The look is based on recycling bin labels: flat solid colors (bin blue, kraft, black, hazard yellow), Barlow Condensed
-headings, square corners, and no gradients, shadows or emoji. The colors are defined in `tailwind.config.js` and the
+The look is based on recycling bin labels: flat solid colors (bin blue, kraft, black, hazard yellow), square corners,
+and no gradients, shadows or emoji. Two things make it MoCoBin's own:
+
+- **Viewfinder corners.** The logo is a blue bin inside camera viewfinder corners, and the same corners (the `.frame`
+  class) mark anything in the scanner's sights: the camera guide, the main scan button and every result.
+- **Stencil lettering.** The wordmark and headlines use Big Shoulders Stencil Display, like the paint on bins and
+  trucks. Everything else uses Barlow and Barlow Condensed. The colors are defined in `tailwind.config.js` and the
 shared styles in `src/index.css`. Copy stays plain and short. Write full sentences instead of using em dashes.
 
 ## Getting started

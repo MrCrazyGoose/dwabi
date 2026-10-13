@@ -32,6 +32,31 @@ const BINS = [
   },
 ];
 
+// A real result from the scanner, shown as an example.
+function ExampleResult() {
+  return (
+    <div className="frame mx-2 my-2">
+      <div className="panel">
+        <div className="flex items-center justify-between border-b-2 border-ink px-4 py-2">
+          <p className="font-display font-bold uppercase tracking-wide">Pizza box</p>
+          <span className="tag bg-hazard">Grease found</span>
+        </div>
+        <div className="grid grid-cols-2">
+          <div className="bg-kraft p-4">
+            <p className="font-display text-xs font-bold uppercase tracking-wider opacity-80">Clean lid</p>
+            <p className="font-stencil text-4xl font-extrabold uppercase leading-none">Paper</p>
+          </div>
+          <div className="bg-ink p-4 text-white">
+            <p className="font-display text-xs font-bold uppercase tracking-wider opacity-80">Greasy bottom</p>
+            <p className="font-stencil text-4xl font-extrabold uppercase leading-none">Trash</p>
+          </div>
+        </div>
+        <p className="px-4 py-3 text-sm">Tear off the greasy part. A few grease spots can spoil a whole bale of paper.</p>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [board, setBoard] = useState(null);
 
@@ -40,34 +65,55 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="space-y-12">
-      <section className="grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-end">
+    <div className="space-y-14">
+      <section className="grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:items-center">
         <div>
           <p className="tag bg-ink text-white">Montgomery County, MD</p>
-          <h1 className="mt-4 text-6xl sm:text-7xl">Which bin does it go in?</h1>
-          <p className="mt-4 max-w-xl text-lg">
-            Point your phone at whatever you are about to throw out. You get the answer under county rules, and a warning
-            when grease, leftover food or a plastic bag would ruin the load.
+          <h1 className="mt-4 text-7xl sm:text-8xl">
+            Scan it
+            <br />
+            <span className="text-bin">before</span> you
+            <br />
+            toss it.
+          </h1>
+          <p className="mt-5 max-w-xl text-lg">
+            Point your phone at whatever you are about to throw out. You see which bin it goes in under county rules, and
+            whether grease, leftover food or a plastic bag would spoil the load.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link to="/scan" className="btn-primary">Scan an item</Link>
-            <Link to="/bin-night" className="btn-secondary">Check my bin</Link>
+          <div className="mt-7 flex flex-wrap items-center gap-5">
+            <span className="frame">
+              <Link to="/scan" className="btn-primary !px-6 !py-3 !text-xl">Scan something</Link>
+            </span>
+            <Link to="/guide" className="font-display text-lg font-bold uppercase underline">Or look it up</Link>
           </div>
         </div>
-        <WarningSign title="The one most people get wrong">
-          Montgomery County does not accept plastic bags in curbside recycling. Bring them to a grocery store drop-off or
-          put them in the trash, and never bag your recyclables.
-        </WarningSign>
+        <ExampleResult />
       </section>
 
       <section className="grid gap-[2px] border-2 border-ink bg-ink sm:grid-cols-2 lg:grid-cols-4">
         {BINS.map((b) => (
           <div key={b.name} className={`p-5 ${b.cls}`}>
-            <h2 className="text-4xl">{b.name}</h2>
+            <h2 className="font-stencil text-4xl font-extrabold">{b.name}</h2>
             <p className="mt-3 text-sm font-medium">{b.yes}</p>
             <p className="mt-4 font-display text-lg font-bold uppercase">{b.rule}</p>
           </div>
         ))}
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr] lg:items-center">
+        <div>
+          <p className="tag bg-hazard">Every week</p>
+          <h2 className="mt-3 font-stencil text-5xl font-extrabold">Bin night</h2>
+          <p className="mt-3 max-w-lg text-lg">
+            The night before pickup, take one photo of your open recycling bin. Anything that has to come out gets listed,
+            with what to do with it. Clean bins build a streak.
+          </p>
+          <Link to="/bin-night" className="btn-secondary mt-5">Set up bin night</Link>
+        </div>
+        <WarningSign title="The one most people get wrong">
+          Montgomery County does not accept plastic bags in curbside recycling. Bring them to a grocery store drop-off or
+          put them in the trash, and never bag your recyclables.
+        </WarningSign>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
@@ -78,10 +124,9 @@ export default function Home() {
               {[
                 ['Scan and sort an item', `+${POINTS.SCAN}`],
                 ['Catch grease, food or a banned item', `+${POINTS.CONTAMINATION_BONUS} more`],
-                ['Weekly quiz, per right answer', `+${POINTS.QUIZ_PER_CORRECT}`],
-                ['All five quiz answers right', `+${POINTS.QUIZ_PERFECT_BONUS} more`],
-                ['Log a sorted batch from home', `+${POINTS.BATCH} to ${POINTS.BATCH + POINTS.BATCH_CHECKLIST_BONUS}`],
                 ['Clean bin on bin night', `+${POINTS.BIN_CHECK}, plus streak`],
+                ['Weekly quiz, per right answer', `+${POINTS.QUIZ_PER_CORRECT}`],
+                ['Log a sorted batch from home', `+${POINTS.BATCH} to ${POINTS.BATCH + POINTS.BATCH_CHECKLIST_BONUS}`],
               ].map(([what, pts]) => (
                 <tr key={what}>
                   <td className="px-5 py-2.5">{what}</td>
@@ -100,7 +145,7 @@ export default function Home() {
             <ol className="divide-y divide-ink/15">
               {board.players.slice(0, 5).map((p) => (
                 <li key={p.id} className="flex items-center gap-4 px-5 py-2.5">
-                  <span className="w-6 font-display text-xl font-bold">{p.rank}</span>
+                  <span className="w-6 font-stencil text-2xl font-extrabold">{p.rank}</span>
                   <span className="flex-1 font-medium">{p.displayName}</span>
                   <span className="font-display text-lg font-bold tabular-nums">{p.points}</span>
                 </li>

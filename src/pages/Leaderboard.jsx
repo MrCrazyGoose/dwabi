@@ -58,7 +58,7 @@ export default function Leaderboard() {
                   const mine = p.id === user?.id;
                   return (
                     <tr key={p.id} className={mine ? 'bg-hazard/40' : p.rank <= 3 ? 'bg-paper' : ''}>
-                      <td className="px-4 py-2.5 font-display text-2xl font-bold">{p.rank}</td>
+                      <td className="px-4 py-2.5 font-stencil text-3xl font-extrabold">{p.rank}</td>
                       <td className="px-4 py-2.5 font-medium">
                         {p.displayName}
                         {mine && <span className="tag ml-2 bg-ink text-white">You</span>}

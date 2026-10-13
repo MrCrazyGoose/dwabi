@@ -40,5 +40,5 @@ if (!vision) console.warn('ANTHROPIC_API_KEY is not set, so AI photo checks are 
 const app = createApp({ store, secret: await loadSecret(), staticDir: path.join(root, 'dist'), vision });
 const port = Number(process.env.PORT || 3001);
 app.listen(port, () => {
-  console.log(`EcoSort API listening on http://localhost:${port} (${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON file'} storage)`);
+  console.log(`MoCoBin API listening on http://localhost:${port} (${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON file'} storage)`);
 });

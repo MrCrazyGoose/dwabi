@@ -6,7 +6,9 @@
   body {
     @apply bg-paper font-sans text-ink antialiased;
   }
-  h1,
+  h1 {
+    @apply font-stencil font-extrabold uppercase leading-[0.9] tracking-tight;
+  }
   h2,
   h3 {
     @apply font-display font-bold uppercase leading-none tracking-tight;
@@ -35,6 +37,38 @@
   .tag {
     @apply inline-block px-2 py-0.5 font-display text-xs font-bold uppercase tracking-wider;
   }
+  /* Viewfinder corners: the brand's signature. Wraps anything that is
+     "in the scanner's sights": the camera, the scan button, results. */
+  .frame {
+    @apply relative;
+    --frame: #141414;
+    --frame-gap: 7px;
+    --frame-len: 18px;
+    --frame-w: 3px;
+  }
+  .frame::before {
+    content: '';
+    position: absolute;
+    inset: calc(var(--frame-gap) * -1);
+    pointer-events: none;
+    background:
+      linear-gradient(var(--frame), var(--frame)) top left / var(--frame-len) var(--frame-w),
+      linear-gradient(var(--frame), var(--frame)) top left / var(--frame-w) var(--frame-len),
+      linear-gradient(var(--frame), var(--frame)) top right / var(--frame-len) var(--frame-w),
+      linear-gradient(var(--frame), var(--frame)) top right / var(--frame-w) var(--frame-len),
+      linear-gradient(var(--frame), var(--frame)) bottom left / var(--frame-len) var(--frame-w),
+      linear-gradient(var(--frame), var(--frame)) bottom left / var(--frame-w) var(--frame-len),
+      linear-gradient(var(--frame), var(--frame)) bottom right / var(--frame-len) var(--frame-w),
+      linear-gradient(var(--frame), var(--frame)) bottom right / var(--frame-w) var(--frame-len);
+    background-repeat: no-repeat;
+  }
+  .frame-light {
+    --frame: rgba(255, 255, 255, 0.9);
+  }
+  .frame-blue {
+    --frame: #1c4fa0;
+  }
+
   /* Yellow and black warning stripe, like the edge of a hazard sign. */
   .stripe {
     background: repeating-linear-gradient(-45deg, #f5c400 0 14px, #141414 14px 28px);

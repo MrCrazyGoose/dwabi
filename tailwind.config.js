@@ -8,6 +8,8 @@ export default {
       fontFamily: {
         sans: ['Barlow', 'Arial', 'sans-serif'],
         display: ['"Barlow Condensed"', '"Arial Narrow"', 'Arial', 'sans-serif'],
+        // Stencil lettering, like the paint on bins and trucks. Logo and headlines only.
+        stencil: ['"Big Shoulders Stencil Display"', '"Barlow Condensed"', '"Arial Narrow"', 'sans-serif'],
       },
       colors: {
         paper: '#F3F0E8', // page background, like unbleached card stock

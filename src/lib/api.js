@@ -1,3 +1,4 @@
+// Kept from the app's first name so existing logins survive the rename.
 const TOKEN_KEY = 'ecosort.token';
 
 export function getToken() {

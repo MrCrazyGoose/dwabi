@@ -61,7 +61,7 @@ function ResultSign({ result }) {
     return (
       <div className="border-2 border-ink bg-leaf p-5 text-white">
         <p className="font-display text-sm font-bold uppercase tracking-wider opacity-80">Bin check</p>
-        <p className="font-display text-5xl font-extrabold uppercase leading-none">Ready to go out</p>
+        <p className="font-stencil text-6xl font-extrabold uppercase leading-[0.9]">Ready to go out</p>
       </div>
     );
   }
@@ -71,7 +71,7 @@ function ResultSign({ result }) {
         <div className="stripe h-3" />
         <div className="p-5">
           <p className="font-display text-sm font-bold uppercase tracking-wider text-ash">Bin check</p>
-          <p className="font-display text-5xl font-extrabold uppercase leading-none">Fix first</p>
+          <p className="font-stencil text-6xl font-extrabold uppercase leading-[0.9]">Fix first</p>
           <p className="mt-2">
             {result.problems.length === 1 ? 'One thing needs' : `${result.problems.length} things need`} to come out before
             this goes to the curb.
@@ -82,7 +82,7 @@ function ResultSign({ result }) {
   }
   return (
     <div className="border-2 border-ink bg-white p-5">
-      <p className="font-display text-5xl font-extrabold uppercase leading-none">Can't tell</p>
+      <p className="font-stencil text-6xl font-extrabold uppercase leading-[0.9]">Can't tell</p>
       <p className="mt-2">Open the lid all the way and take the photo from above, with good light.</p>
     </div>
   );
@@ -171,7 +171,7 @@ export default function BinNight() {
             <div className="panel">
               <div className="bg-bin p-5 text-white">
                 <p className="font-display text-sm font-bold uppercase tracking-wider opacity-80">Next pickup</p>
-                <p className="font-display text-4xl font-extrabold uppercase leading-none">{pickup.label}</p>
+                <p className="font-stencil text-5xl font-extrabold uppercase leading-[0.9]">{pickup.label}</p>
                 <p className="mt-2">Set your bins out by 7 a.m.</p>
               </div>
               {pickup.holiday && (

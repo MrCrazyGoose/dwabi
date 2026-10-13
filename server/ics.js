@@ -6,7 +6,7 @@ import { addDays, upcomingPickups, WEEKDAYS, weekday } from '../shared/pickup.js
 const pad = (n) => String(n).padStart(2, '0');
 const stamp = (d) => `${d.y}${pad(d.m)}${pad(d.d)}`;
 
-export function pickupCalendar(pickupDay, { now = new Date(), weeks = 26, appName = 'EcoSort', url = '' } = {}) {
+export function pickupCalendar(pickupDay, { now = new Date(), weeks = 26, appName = 'MoCoBin', url = '' } = {}) {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -21,7 +21,7 @@ export function pickupCalendar(pickupDay, { now = new Date(), weeks = 26, appNam
     const slid = p.holiday ? ` Moved a day later for ${p.holiday}.` : '';
     lines.push(
       'BEGIN:VEVENT',
-      `UID:bin-night-${stamp(p.date)}-${pickupDay}@ecosort`,
+      `UID:bin-night-${stamp(p.date)}-${pickupDay}@mocobin`,
       `DTSTAMP:${created}`,
       `DTSTART;TZID=America/New_York:${stamp(eve)}T190000`,
       `DTEND;TZID=America/New_York:${stamp(eve)}T191500`,

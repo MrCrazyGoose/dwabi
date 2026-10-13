@@ -19,7 +19,7 @@ function BinSign({ stream, eyebrow, note }) {
   return (
     <div className={`flex-1 p-4 ${s.solid}`}>
       <p className="font-display text-sm font-bold uppercase tracking-wider opacity-80">{eyebrow}</p>
-      <p className="mt-1 font-display text-4xl font-extrabold uppercase leading-none sm:text-5xl">{stream.label}</p>
+      <p className="mt-1 font-stencil text-5xl font-extrabold uppercase leading-[0.9] sm:text-6xl">{stream.label}</p>
       {note && <p className="mt-2 text-sm font-medium opacity-90">{note}</p>}
     </div>
   );
@@ -34,6 +34,7 @@ export default function VerdictCard({ verdict }) {
     <div className="space-y-4">
       {alert && <WarningSign>{alert}</WarningSign>}
 
+      <div className="frame mx-1.5 my-1.5">
       <div className="panel">
         <div className="flex items-center justify-between gap-3 border-b-2 border-ink px-4 py-2">
           <p className="font-display text-base font-bold uppercase tracking-wide">{item.name}</p>
@@ -55,6 +56,7 @@ export default function VerdictCard({ verdict }) {
             </p>
           )}
         </div>
+      </div>
       </div>
 
       {reminder && (

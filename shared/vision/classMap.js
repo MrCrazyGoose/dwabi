@@ -1,4 +1,4 @@
-// Maps MobileNet (ImageNet) class names to EcoSort rule item ids.
+// Maps MobileNet (ImageNet) class names to rule item ids.
 //
 // MobileNet returns labels such as "pop bottle, soda bottle" or
 // "pizza, pizza pie". Each rule below is tested against the label; the first

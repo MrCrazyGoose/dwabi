@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import { COUNTY_INFO_URL } from '../../shared/rules.js';
-import { BRAND_NAME } from '../../shared/brand.js';
+import { BRAND_DISCLAIMER } from '../../shared/brand.js';
+import { LogoMark, Wordmark } from './Logo.jsx';
 import { useConfig } from '../lib/config.js';
 
 const NAV = [
@@ -35,9 +36,9 @@ export default function Layout() {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b-2 border-ink bg-white">
         <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-2.5">
-          <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <img src="/favicon.svg" alt="" className="h-8 w-8" />
-            <span className="font-display text-2xl font-extrabold uppercase tracking-tight">{BRAND_NAME}</span>
+          <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)} aria-label="MoCoBin home">
+            <LogoMark />
+            <Wordmark />
           </Link>
           <nav className="hidden items-center gap-5 lg:flex">
             {NAV.map((n) => (
@@ -97,7 +98,9 @@ export default function Layout() {
       </main>
 
       <footer className="border-t-2 border-ink bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-5 text-sm text-ash">
+        <div className="mx-auto max-w-6xl space-y-1 px-4 py-5 text-sm text-ash">
+          <p className="font-semibold text-ink">{BRAND_DISCLAIMER}</p>
+          <p>
           Sorting rules follow Montgomery County DEP guidance. Check anything unusual at{' '}
           <a className="font-semibold text-ink underline" href={COUNTY_INFO_URL} target="_blank" rel="noreferrer">
             montgomerycountymd.gov/sws
@@ -106,6 +109,7 @@ export default function Layout() {
           {config?.photoChecks
             ? 'Photos are sent to an AI service to be checked and are not saved by this site.'
             : 'Photos you scan stay on your phone.'}
+          </p>
         </div>
       </footer>
     </div>

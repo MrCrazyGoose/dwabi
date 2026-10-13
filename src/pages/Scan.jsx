@@ -308,7 +308,10 @@ export default function Scan() {
                   {cameraError && (
                     <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-white">{cameraError}</p>
                   )}
-                  <div className="pointer-events-none absolute left-1/2 top-1/2 aspect-square h-[70%] -translate-x-1/2 -translate-y-1/2 border-2 border-dashed border-white/80" />
+                  <div
+                    className="frame frame-light pointer-events-none !absolute left-1/2 top-1/2 aspect-square h-[70%] -translate-x-1/2 -translate-y-1/2"
+                    style={{ '--frame-gap': '0px', '--frame-len': '36px', '--frame-w': '4px' }}
+                  />
                   {cameraReady && (
                     <span className="absolute bottom-0 left-0 bg-ink px-2 py-1 font-display text-sm font-bold uppercase text-white">
                       {liveLabel ? `Looks like: ${liveLabel}` : 'Fill the box with the item'}
