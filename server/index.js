@@ -24,6 +24,10 @@ async function loadSecret() {
   }
 }
 
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
+  console.warn('WARNING: DATABASE_URL is not set — using a JSON file. On hosts with temporary disks (like Render) all accounts and points are lost on every restart.');
+}
+
 const store = await createStore({ ...process.env, DATA_FILE: process.env.DATA_FILE || path.join(root, 'data', 'ecosort.json') });
 const app = createApp({ store, secret: await loadSecret(), staticDir: path.join(root, 'dist') });
 const port = Number(process.env.PORT || 3001);

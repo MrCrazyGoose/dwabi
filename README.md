@@ -52,6 +52,19 @@ The webcam needs a secure context, which means `https://` or `localhost`. The Mo
 once from TensorFlow Hub and are cached by the browser. If they cannot load, students can still pick the item by name,
 and the contamination check still runs on their photo.
 
+## Free hosting (Render + Neon)
+
+`render.yaml` sets up one free Render web service that runs the API and serves the site. Render's free disk is
+wiped on every restart, so data goes in a free [Neon](https://neon.tech) PostgreSQL database.
+
+1. **Neon:** sign up with GitHub, create a project (pick a US East region), then copy the connection string
+   (`postgresql://…?sslmode=require`).
+2. **Render:** sign up with GitHub, then **New → Blueprint**, and pick this repository. When it asks for
+   `DATABASE_URL`, paste the Neon string. Then click **Apply**.
+3. When the deploy finishes, the site is live at `https://ecosort-XXXX.onrender.com`. Tables are created automatically.
+
+Free Render services sleep after about 15 minutes without visitors. The first visit after that takes roughly a minute to wake up.
+
 ## Tests
 
 ```bash
