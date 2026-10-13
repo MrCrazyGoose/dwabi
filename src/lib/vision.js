@@ -37,6 +37,28 @@ export function toCanvas(source, maxSide = 480) {
   return canvas;
 }
 
+// Crop a video frame to the square scan guide drawn over the preview. The
+// preview is a 4:3 box with object-fit: cover, and the guide is a centered
+// square GUIDE_FRACTION of the box height, so only what the user framed is
+// classified and checked for contamination (not the wall or floor around it).
+export const GUIDE_FRACTION = 0.7;
+
+export function cropToGuide(video, maxSide = 480) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  // Visible region of the video inside the 4:3 preview.
+  const visH = vw / vh > 4 / 3 ? vh : (vw * 3) / 4;
+  const side = Math.round(visH * GUIDE_FRACTION);
+  const sx = Math.round((vw - side) / 2);
+  const sy = Math.round((vh - side) / 2);
+  const out = Math.min(side, maxSide);
+  const canvas = document.createElement('canvas');
+  canvas.width = out;
+  canvas.height = out;
+  canvas.getContext('2d').drawImage(video, sx, sy, side, side, 0, 0, out, out);
+  return canvas;
+}
+
 export function loadImageFile(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);

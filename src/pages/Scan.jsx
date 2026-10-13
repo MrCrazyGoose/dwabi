@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { decide, getItem } from '../../shared/rules.js';
-import { matchPredictions } from '../../shared/vision/classMap.js';
+import { matchPredictions, suggestItems } from '../../shared/vision/classMap.js';
 import { analyzeImage } from '../../shared/vision/contamination.js';
 import { POINTS } from '../../shared/points.js';
-import { classify, loadModel, loadImageFile, toCanvas } from '../lib/vision.js';
+import { classify, cropToGuide, loadModel, loadImageFile, toCanvas } from '../lib/vision.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import ItemSearch from '../components/ItemSearch.jsx';
@@ -125,10 +125,10 @@ export default function Scan() {
     const tick = async () => {
       if (stopped || !videoRef.current) return;
       try {
-        const preds = await classify(videoRef.current, 3);
+        const preds = await classify(cropToGuide(videoRef.current, 224), 3);
         if (stopped) return;
         const m = matchPredictions(preds);
-        setLiveLabel(m ? getItem(m.itemId).name : preds[0]?.className.split(',')[0]);
+        setLiveLabel(m ? getItem(m.itemId).name : null);
       } catch {
         // ignore transient frame errors
       }
@@ -181,7 +181,7 @@ export default function Scan() {
   const takePhoto = () => {
     const video = videoRef.current;
     if (!video || !cameraReady) return;
-    runClassification(toCanvas(video), 'camera');
+    runClassification(cropToGuide(video), 'camera');
   };
 
   const onFile = async (e) => {
@@ -279,7 +279,12 @@ export default function Scan() {
                       Looks like: {liveLabel}
                     </span>
                   )}
-                  <div className="pointer-events-none absolute inset-[15%] rounded-2xl border-2 border-dashed border-white/50" />
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 aspect-square h-[70%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-dashed border-white/70" />
+                  {cameraReady && !liveLabel && (
+                    <span className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white">
+                      Fill the box with the item
+                    </span>
+                  )}
                 </>
               ) : (
                 <button
@@ -370,10 +375,17 @@ export default function Scan() {
               </p>
             )}
             {capture && !busy && !match && !item && (
-              <p className="mt-2 text-sm text-amber-700">
-                We could not confidently identify that item. Search for it above — the contamination check will still run
-                on your photo.
-              </p>
+              <div className="mt-3">
+                <p className="text-sm font-medium text-amber-800">Not sure what this is — tap the item:</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {suggestItems(predictions).map((id) => (
+                    <button key={id} type="button" className="btn-secondary !px-3 !py-1.5" onClick={() => chooseItem(getItem(id))}>
+                      {getItem(id).name.replace(/ \(.*\)$/, '')}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">Not listed? Search above. The contamination check still runs on your photo.</p>
+              </div>
             )}
           </div>
 

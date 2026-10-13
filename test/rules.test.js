@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ITEMS, STREAMS, decide, getItem, searchItems } from '../shared/rules.js';
-import { mapLabelToItem, matchPredictions } from '../shared/vision/classMap.js';
+import { mapLabelToItem, matchPredictions, suggestItems, QUICK_PICKS } from '../shared/vision/classMap.js';
 
 test('every item has a valid stream and unique id', () => {
   const ids = new Set();
@@ -76,6 +76,20 @@ test('matchPredictions skips unmapped and low-confidence labels', () => {
   ]);
   assert.deepEqual(m, { itemId: 'plastic-bottle', label: 'water bottle', probability: 0.3 });
   assert.equal(matchPredictions([{ className: 'water bottle', probability: 0.01 }]), null);
+});
+
+test('a low-confidence guess is not auto-selected (soda can read as toilet tissue)', () => {
+  const preds = [
+    { className: 'toilet tissue, toilet paper, bathroom tissue', probability: 0.15 },
+    { className: 'toilet seat', probability: 0.09 },
+    { className: 'mixing bowl', probability: 0.06 },
+  ];
+  assert.equal(matchPredictions(preds), null);
+  const picks = suggestItems(preds);
+  assert.equal(picks[0], 'paper-towel');
+  assert.ok(picks.includes('aluminum-can'));
+  assert.ok(picks.length <= 8);
+  for (const id of QUICK_PICKS) assert.ok(getItem(id), id);
 });
 
 test('every mapped label resolves to a real item', () => {

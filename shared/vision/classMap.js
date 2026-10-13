@@ -46,13 +46,44 @@ export function mapLabelToItem(label) {
   return null;
 }
 
+// MobileNet is a general ImageNet model, not a waste classifier: some common
+// items (soda cans, for example) have no class at all and come back as an
+// unrelated low-confidence guess. Only auto-select an item above this
+// confidence; below it, the UI asks the user to pick.
+export const CONFIDENT = 0.3;
+
+// Items most often scanned, offered as one-tap choices when unsure.
+export const QUICK_PICKS = [
+  'aluminum-can',
+  'plastic-bottle',
+  'plastic-container',
+  'glass-bottle',
+  'cardboard-box',
+  'pizza-box',
+  'plastic-bag',
+  'paper-cup',
+];
+
 // predictions: [{ className, probability }] sorted by probability.
 // Returns the best matching item id plus the prediction that produced it.
-export function matchPredictions(predictions, minProbability = 0.08) {
+export function matchPredictions(predictions, minProbability = CONFIDENT) {
   for (const p of predictions || []) {
     if (p.probability < minProbability) continue;
     const itemId = mapLabelToItem(p.className);
     if (itemId) return { itemId, label: p.className, probability: p.probability };
   }
   return null;
+}
+
+// Candidate items for the "Is it one of these?" picker: the model's plausible
+// low-confidence guesses first, then the common quick picks.
+export function suggestItems(predictions, limit = 8, minProbability = 0.05) {
+  const ids = [];
+  for (const p of predictions || []) {
+    if (p.probability < minProbability) continue;
+    const id = mapLabelToItem(p.className);
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  for (const id of QUICK_PICKS) if (!ids.includes(id)) ids.push(id);
+  return ids.slice(0, limit);
 }
