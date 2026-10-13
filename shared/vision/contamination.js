@@ -156,7 +156,7 @@ export function analyzeGrease(img, { gridSize = 6 } = {}) {
 //
 // Clean containers are mostly neutral (clear, white, grey, metallic) or a
 // single printed label color. Food residue shows up as small, saturated,
-// warm-colored patches — sauce, peanut butter, yogurt fruit, coffee — inside
+// warm-colored patches (sauce, peanut butter, yogurt fruit, coffee) inside
 // the central region of the frame where the user holds the item.
 export function analyzeResidue(img, { gridSize = 6 } = {}) {
   const step = pickStep(img);

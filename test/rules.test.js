@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ITEMS, STREAMS, decide, getItem, searchItems } from '../shared/rules.js';
-import { mapLabelToItem, matchPredictions } from '../shared/vision/classMap.js';
+import { mapLabelToItem, matchPredictions, suggestItems, QUICK_PICKS } from '../shared/vision/classMap.js';
 
 test('every item has a valid stream and unique id', () => {
   const ids = new Set();
@@ -28,7 +28,7 @@ test('clean pizza box goes to paper; light grease splits; heavy grease goes to t
   const light = decide('pizza-box', { level: 'light' });
   assert.equal(light.split, true);
   assert.equal(light.stream.id, 'PAPER');
-  assert.match(light.steps[0], /TRASH/);
+  assert.match(light.steps[0], /trash/);
   const heavy = decide('pizza-box', { level: 'heavy' });
   assert.equal(heavy.stream.id, 'TRASH');
   assert.equal(heavy.contaminated, true);
@@ -66,6 +66,12 @@ test('MobileNet labels map to rule items', () => {
   assert.equal(mapLabelToItem('laptop, laptop computer'), 'computer');
   assert.equal(mapLabelToItem('coffee mug'), 'drinking-glass');
   assert.equal(mapLabelToItem('banana'), 'food-scraps');
+  for (const food of ['spaghetti squash', 'butternut squash', 'acorn squash', 'jackfruit', 'zucchini, courgette',
+    'bell pepper', 'corn', 'cauliflower', 'mushroom', 'fig', 'pomegranate', 'ice lolly, lolly, lollipop, popsicle']) {
+    assert.equal(mapLabelToItem(food), 'food-scraps', food);
+  }
+  assert.equal(mapLabelToItem('acorn'), 'yard-trim');
+  assert.equal(mapLabelToItem('hay'), 'yard-trim');
   assert.equal(mapLabelToItem('tabby, tabby cat'), null);
 });
 
@@ -76,6 +82,28 @@ test('matchPredictions skips unmapped and low-confidence labels', () => {
   ]);
   assert.deepEqual(m, { itemId: 'plastic-bottle', label: 'water bottle', probability: 0.3 });
   assert.equal(matchPredictions([{ className: 'water bottle', probability: 0.01 }]), null);
+});
+
+test('a confident food prediction is auto-selected (spaghetti squash at 50%)', () => {
+  const m = matchPredictions([
+    { className: 'spaghetti squash', probability: 0.5 },
+    { className: 'jackfruit, jak, jack', probability: 0.09 },
+  ]);
+  assert.equal(m.itemId, 'food-scraps');
+});
+
+test('a low-confidence guess is not auto-selected (soda can read as toilet tissue)', () => {
+  const preds = [
+    { className: 'toilet tissue, toilet paper, bathroom tissue', probability: 0.15 },
+    { className: 'toilet seat', probability: 0.09 },
+    { className: 'mixing bowl', probability: 0.06 },
+  ];
+  assert.equal(matchPredictions(preds), null);
+  const picks = suggestItems(preds);
+  assert.equal(picks[0], 'paper-towel');
+  assert.ok(picks.includes('aluminum-can'));
+  assert.ok(picks.length <= 8);
+  for (const id of QUICK_PICKS) assert.ok(getItem(id), id);
 });
 
 test('every mapped label resolves to a real item', () => {

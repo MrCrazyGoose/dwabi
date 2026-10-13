@@ -1,30 +1,38 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
-import { useAuth } from '../lib/auth.jsx';
 import { POINTS } from '../../shared/points.js';
-import { AlertBanner } from '../components/VerdictCard.jsx';
+import { SHADY_GROVE } from '../../shared/rules.js';
+import { WarningSign } from '../components/VerdictCard.jsx';
 
-const FEATURES = [
+const BINS = [
   {
-    icon: '🔍',
-    title: 'Contamination detection',
-    body: 'Not just “cardboard” — EcoSort checks for grease stains, food residue and banned items like plastic bags, right on your device.',
+    name: 'Blue bin',
+    cls: 'bg-bin text-white',
+    yes: 'Bottles, cans, jars, cartons, plastic tubs and containers, clean foil.',
+    rule: 'Empty. Rinsed. Loose.',
   },
   {
-    icon: '🏆',
-    title: 'School leaderboard',
-    body: 'Earn points for your school or neighborhood cluster. Top students and schools win eco gear, SSL recognition and green-team grants.',
+    name: 'Paper',
+    cls: 'bg-kraft text-ink',
+    yes: 'Cardboard, cereal boxes, mail, newspaper, the clean lid of a pizza box.',
+    rule: 'Clean, dry, flattened.',
   },
   {
-    icon: '📍',
-    title: 'Montgomery County rules',
-    body: 'Blue bin, mixed-paper cart, or the Shady Grove Transfer Station? Answers follow county DEP rules — not generic advice.',
+    name: 'Trash',
+    cls: 'bg-ink text-white',
+    yes: 'Foam, chip bags, used napkins, greasy paper, drinking glasses, plastic utensils.',
+    rule: 'If unsure, it goes here.',
+  },
+  {
+    name: 'Shady Grove',
+    cls: 'bg-stop text-white',
+    yes: 'Batteries, car batteries, electronics, paint, propane, fluorescent bulbs.',
+    rule: SHADY_GROVE.address.replace(', MD 20855', ''),
   },
 ];
 
 export default function Home() {
-  const { user } = useAuth();
   const [board, setBoard] = useState(null);
 
   useEffect(() => {
@@ -33,79 +41,72 @@ export default function Home() {
 
   return (
     <div className="space-y-12">
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-eco-700 via-eco-600 to-emerald-500 px-6 py-12 text-white sm:px-12 sm:py-16">
-        <div className="relative z-10 max-w-2xl">
-          <p className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
-            Montgomery County, MD · Youth Zero-Waste Challenge
+      <section className="grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-end">
+        <div>
+          <p className="tag bg-ink text-white">Montgomery County, MD</p>
+          <h1 className="mt-4 text-6xl sm:text-7xl">Which bin does it go in?</h1>
+          <p className="mt-4 max-w-xl text-lg">
+            Point your phone at whatever you are about to throw out. You get the answer under county rules, and a warning
+            when grease, leftover food or a plastic bag would ruin the load.
           </p>
-          <h1 className="mt-4 text-4xl font-extrabold leading-tight sm:text-5xl">Scan it. Sort it right. Win for your school.</h1>
-          <p className="mt-4 text-lg text-eco-50">
-            “Wish-recycling” contaminates Montgomery County blue bins every day. EcoSort tells you exactly where each item
-            goes — and catches the greasy pizza boxes and plastic bags before they reach the truck.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/scan" className="btn bg-white text-eco-800 hover:bg-eco-50">📷 Scan an item</Link>
-            {!user && (
-              <Link to="/register" className="btn bg-eco-900/40 text-white ring-1 ring-white/40 hover:bg-eco-900/60">
-                Join with your school
-              </Link>
-            )}
-            {user && (
-              <Link to="/dashboard" className="btn bg-eco-900/40 text-white ring-1 ring-white/40 hover:bg-eco-900/60">
-                My dashboard
-              </Link>
-            )}
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link to="/scan" className="btn-primary">Scan an item</Link>
+            <Link to="/guide" className="btn-secondary">Look something up</Link>
           </div>
         </div>
-        <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 text-[16rem] leading-none opacity-10">♻</div>
+        <WarningSign title="The one most people get wrong">
+          Montgomery County does not accept plastic bags in curbside recycling. Bring them to a grocery store drop-off or
+          put them in the trash, and never bag your recyclables.
+        </WarningSign>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        {FEATURES.map((f) => (
-          <div key={f.title} className="card p-6">
-            <p className="text-3xl">{f.icon}</p>
-            <h2 className="mt-3 text-lg font-bold">{f.title}</h2>
-            <p className="mt-1 text-sm text-slate-600">{f.body}</p>
+      <section className="grid gap-[2px] border-2 border-ink bg-ink sm:grid-cols-2 lg:grid-cols-4">
+        {BINS.map((b) => (
+          <div key={b.name} className={`p-5 ${b.cls}`}>
+            <h2 className="text-4xl">{b.name}</h2>
+            <p className="mt-3 text-sm font-medium">{b.yes}</p>
+            <p className="mt-4 font-display text-lg font-bold uppercase">{b.rule}</p>
           </div>
         ))}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-bold">The #1 rule people get wrong</h2>
-        <AlertBanner>
-          Montgomery County does not accept plastic bags in curbside recycling! Please bring them to a local grocery store
-          drop-off or place them in the trash — and never bag your recyclables.
-        </AlertBanner>
-      </section>
-
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="card p-6">
-          <h2 className="text-xl font-bold">How to earn points</h2>
-          <ul className="mt-4 space-y-3 text-sm">
-            <li className="flex justify-between gap-4"><span>Scan and sort an item</span><strong>+{POINTS.SCAN}</strong></li>
-            <li className="flex justify-between gap-4"><span>Catch contamination or a banned item</span><strong>+{POINTS.CONTAMINATION_BONUS} bonus</strong></li>
-            <li className="flex justify-between gap-4"><span>Weekly Zero-Waste Quiz (per correct answer)</span><strong>+{POINTS.QUIZ_PER_CORRECT}</strong></li>
-            <li className="flex justify-between gap-4"><span>Perfect quiz score</span><strong>+{POINTS.QUIZ_PERFECT_BONUS} bonus</strong></li>
-            <li className="flex justify-between gap-4"><span>Log a sorted household batch</span><strong>+{POINTS.BATCH}–{POINTS.BATCH + POINTS.BATCH_CHECKLIST_BONUS}</strong></li>
-          </ul>
+        <div className="panel">
+          <h2 className="border-b-2 border-ink px-5 py-3 text-2xl">Points</h2>
+          <table className="w-full">
+            <tbody className="divide-y divide-ink/15">
+              {[
+                ['Scan and sort an item', `+${POINTS.SCAN}`],
+                ['Catch grease, food or a banned item', `+${POINTS.CONTAMINATION_BONUS} more`],
+                ['Weekly quiz, per right answer', `+${POINTS.QUIZ_PER_CORRECT}`],
+                ['All five quiz answers right', `+${POINTS.QUIZ_PERFECT_BONUS} more`],
+                ['Log a sorted batch from home', `+${POINTS.BATCH} to ${POINTS.BATCH + POINTS.BATCH_CHECKLIST_BONUS}`],
+              ].map(([what, pts]) => (
+                <tr key={what}>
+                  <td className="px-5 py-2.5">{what}</td>
+                  <td className="px-5 py-2.5 text-right font-display text-lg font-bold">{pts}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Top schools right now</h2>
-            <Link to="/leaderboard" className="text-sm font-semibold text-eco-700">Full leaderboard →</Link>
+        <div className="panel">
+          <div className="flex items-baseline justify-between border-b-2 border-ink px-5 py-3">
+            <h2 className="text-2xl">Top right now</h2>
+            <Link to="/leaderboard" className="font-display font-bold uppercase underline">Full board</Link>
           </div>
-          {board?.schools?.length ? (
-            <ol className="mt-4 space-y-2">
-              {board.schools.slice(0, 5).map((s, i) => (
-                <li key={s.id} className="flex items-center gap-3 text-sm">
-                  <span className="w-6 text-center font-bold text-slate-400">{i + 1}</span>
-                  <span className="flex-1 font-medium">{s.name}</span>
-                  <span className="tabular-nums text-slate-600">{s.perStudent} pts/student</span>
+          {board?.players?.length ? (
+            <ol className="divide-y divide-ink/15">
+              {board.players.slice(0, 5).map((p) => (
+                <li key={p.id} className="flex items-center gap-4 px-5 py-2.5">
+                  <span className="w-6 font-display text-xl font-bold">{p.rank}</span>
+                  <span className="flex-1 font-medium">{p.displayName}</span>
+                  <span className="font-display text-lg font-bold tabular-nums">{p.points}</span>
                 </li>
               ))}
             </ol>
           ) : (
-            <p className="mt-4 text-sm text-slate-500">No points yet this season — your school could be first!</p>
+            <p className="px-5 py-4 text-ash">Nobody has points yet this season.</p>
           )}
         </div>
       </section>

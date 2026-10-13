@@ -10,29 +10,18 @@ export function getCompetition(env = process.env) {
     // Inclusive of the whole final day (Eastern time).
     end: new Date(`${end}T23:59:59-05:00`).toISOString(),
     prizes: [
+      { place: '1st to 3rd', prize: 'Gear pack: steel bottle, utensil kit and a backpack made from recycled fabric' },
+      { place: '4th to 10th', prize: 'Steel bottle and a set of bin labels for your recycling at home' },
       {
-        place: 'Top 3 students',
-        prize: 'Eco-friendly gear pack (reusable bottle, bamboo utensil kit, recycled-fabric backpack)',
-      },
-      {
-        place: 'Top 25 students',
-        prize: 'Student Service Learning (SSL) hour recognition letter for verified, logged sorting activity, subject to school approval',
-      },
-      {
-        place: 'Top school (points per active student)',
-        prize: 'Sponsored green-team grant for a school sustainability project',
-      },
-      {
-        place: 'Top cluster',
-        prize: 'Featured on the county-wide EcoSort leaderboard and a celebration event',
+        place: 'Top 25',
+        prize: 'A letter documenting your logged sorting work, which MCPS students can submit for Student Service Learning (SSL) hours with school approval',
       },
     ],
     rules: [
-      'Open to Montgomery County middle and high school students.',
-      'Points count only between the start and end dates.',
-      'Daily caps limit points from scanning and batch logs — consistency beats volume.',
-      'School rankings use points per active student so small and large schools compete fairly.',
-      'Organizers may verify top entries before awarding prizes.',
+      'Open to young people who live in Montgomery County.',
+      'Only points earned between the start and end dates count.',
+      'Scanning and batch logs have daily limits, so showing up often beats one long session.',
+      'Organizers may check top entries before prizes go out.',
     ],
   };
 }

@@ -12,7 +12,7 @@ import { useAuth } from './lib/auth.jsx';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <p className="p-8 text-center text-slate-500">Loading…</p>;
+  if (loading) return <p className="p-8 text-center text-ash">Loading...</p>;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }

@@ -4,7 +4,6 @@ import { existsSync } from 'node:fs';
 import { hashPassword, verifyPassword, signToken, verifyToken, rateLimiter } from './auth.js';
 import { getCompetition, isWithin } from './competition.js';
 import { weekKey, questionsForWeek, publicQuestion } from './quizBank.js';
-import { SCHOOLS, getSchool } from '../shared/schools.js';
 import { getItem, searchItems, decide } from '../shared/rules.js';
 import { POINTS, LIMITS, BATCH_CHECKLIST, BATCH_FIELDS } from '../shared/points.js';
 
@@ -22,13 +21,10 @@ class HttpError extends Error {
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 function publicUser(user) {
-  const school = getSchool(user.schoolId);
   return {
     id: user.id,
     username: user.username,
     displayName: user.displayName,
-    grade: user.grade,
-    school: school ? { id: school.id, name: school.name, cluster: school.cluster } : null,
     createdAt: user.createdAt,
   };
 }
@@ -76,8 +72,6 @@ export function createApp({ store, secret, env = process.env, staticDir } = {}) 
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
 
-  app.get('/api/schools', (req, res) => res.json({ schools: SCHOOLS }));
-
   app.get('/api/competition', (req, res) => res.json({ competition: getCompetition(env) }));
 
   app.get('/api/rules', (req, res) => {
@@ -96,7 +90,7 @@ export function createApp({ store, secret, env = process.env, staticDir } = {}) 
     '/api/auth/register',
     authLimiter,
     wrap(async (req, res) => {
-      const { username, password, displayName, schoolId, grade } = req.body || {};
+      const { username, password, displayName } = req.body || {};
       if (!USERNAME_RE.test(username || '')) {
         throw new HttpError(400, 'Username must be 3–20 letters, numbers or underscores.');
       }
@@ -107,19 +101,12 @@ export function createApp({ store, secret, env = process.env, staticDir } = {}) 
       if (!DISPLAY_NAME_RE.test(name)) {
         throw new HttpError(400, 'Display name must be 2–30 characters (letters, numbers, spaces).');
       }
-      if (!getSchool(schoolId)) throw new HttpError(400, 'Please choose your school or neighborhood.');
-      const g = grade === undefined || grade === null || grade === '' ? null : Number(grade);
-      if (g !== null && !(Number.isInteger(g) && g >= 6 && g <= 12)) {
-        throw new HttpError(400, 'Grade must be between 6 and 12.');
-      }
       let user;
       try {
         user = await store.createUser({
           username,
           displayName: name,
           passwordHash: await hashPassword(password),
-          schoolId,
-          grade: g,
         });
       } catch (err) {
         if (err.code === 'USERNAME_TAKEN') throw new HttpError(409, 'That username is taken.');
@@ -170,7 +157,7 @@ export function createApp({ store, secret, env = process.env, staticDir } = {}) 
         if (e.type === 'batch' && e.createdAt >= since) batchesToday++;
       }
 
-      const board = await store.leaderboardStudents({ start: competition.start, end: competition.end, limit: 10000 });
+      const board = await store.leaderboard({ start: competition.start, end: competition.end, limit: 10000 });
       const rankIndex = board.findIndex((r) => r.id === req.user.id);
 
       const week = weekKey();
@@ -301,14 +288,14 @@ export function createApp({ store, secret, env = process.env, staticDir } = {}) 
       if (totalItems < 3) throw new HttpError(400, 'A batch needs at least 3 sorted items.');
       const checked = BATCH_CHECKLIST.map((c) => c.id).filter((id) => Array.isArray(checklist) && checklist.includes(id));
       if (!checked.includes('no-bags')) {
-        throw new HttpError(400, 'Before logging: recyclables must be loose in the bin — no plastic bags!');
+        throw new HttpError(400, 'Recyclables have to go in the bin loose, not in a plastic bag. Check that box first.');
       }
 
       const event = await withUserLock(req.user.id, async () => {
         const since = new Date(Date.now() - DAY_MS).toISOString();
         const recent = (await store.listUserEvents(req.user.id, { since })).filter((e) => e.type === 'batch');
         if (recent.length >= LIMITS.BATCHES_PER_DAY) {
-          throw new HttpError(429, `You can log up to ${LIMITS.BATCHES_PER_DAY} batches per day. Great work — come back tomorrow!`);
+          throw new HttpError(429, `That's ${LIMITS.BATCHES_PER_DAY} batches today, the daily limit. You can log more tomorrow.`);
         }
         const points = POINTS.BATCH + (checked.length === BATCH_CHECKLIST.length ? POINTS.BATCH_CHECKLIST_BONUS : 0);
         return store.addEvent({
@@ -329,47 +316,10 @@ export function createApp({ store, secret, env = process.env, staticDir } = {}) 
     '/api/leaderboard',
     wrap(async (req, res) => {
       const competition = getCompetition(env);
-      const window = { start: competition.start, end: competition.end };
-      const [students, schoolRows] = await Promise.all([
-        store.leaderboardStudents({ ...window, limit: 50 }),
-        store.pointsBySchool(window),
-      ]);
-
-      const schools = schoolRows
-        .map((r) => {
-          const s = getSchool(r.schoolId);
-          return {
-            id: r.schoolId,
-            name: s ? s.name : r.schoolId,
-            cluster: s ? s.cluster : 'Unknown',
-            level: s ? s.level : null,
-            points: r.points,
-            students: r.students,
-            perStudent: Math.round(r.points / Math.max(1, r.students)),
-          };
-        })
-        .sort((a, b) => b.perStudent - a.perStudent || b.points - a.points);
-
-      const clusterMap = new Map();
-      for (const s of schools) {
-        const c = clusterMap.get(s.cluster) || { name: s.cluster, points: 0, students: 0, schools: 0 };
-        c.points += s.points;
-        c.students += s.students;
-        c.schools += 1;
-        clusterMap.set(s.cluster, c);
-      }
-      const clusters = [...clusterMap.values()]
-        .map((c) => ({ ...c, perStudent: Math.round(c.points / Math.max(1, c.students)) }))
-        .sort((a, b) => b.points - a.points);
-
+      const rows = await store.leaderboard({ start: competition.start, end: competition.end, limit: 100 });
       res.json({
         competition,
-        students: students.map((s, i) => {
-          const school = getSchool(s.schoolId);
-          return { rank: i + 1, displayName: s.displayName, school: school ? school.name : null, points: s.points, id: s.id };
-        }),
-        schools,
-        clusters,
+        players: rows.map((r, i) => ({ rank: i + 1, id: r.id, displayName: r.displayName, points: r.points })),
       });
     }),
   );

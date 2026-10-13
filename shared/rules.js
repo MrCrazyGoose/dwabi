@@ -20,109 +20,108 @@ export const SHADY_GROVE = {
 
 export const COUNTY_INFO_URL = 'https://www.montgomerycountymd.gov/sws/';
 
+// `short` is the text printed on the bin-label style badge. `color` is a
+// signage color key (see src/lib/streamStyles.js).
 export const STREAMS = {
   BLUE_BIN: {
     id: 'BLUE_BIN',
     label: 'Blue Bin',
-    sublabel: 'Commingled containers',
-    color: 'blue',
-    icon: '🔵',
+    short: 'Blue bin',
+    sublabel: 'Bottles, cans, jars, cartons, tubs',
+    color: 'bin',
     description:
-      'Curbside blue bin for empty, rinsed bottles, jars, cans, cartons and rigid plastic containers. Loose — never bagged.',
+      'Curbside blue bin for empty, rinsed bottles, jars, cans, cartons and rigid plastic containers. Put them in loose, never in a bag.',
   },
   PAPER: {
     id: 'PAPER',
-    label: 'Mixed Paper Cart',
-    sublabel: 'Paper & cardboard',
-    color: 'sky',
-    icon: '📦',
-    description:
-      'Curbside mixed-paper cart (or paper bin) for clean, dry paper and flattened cardboard.',
+    label: 'Paper Cart',
+    short: 'Paper',
+    sublabel: 'Paper and cardboard',
+    color: 'kraft',
+    description: 'Curbside mixed-paper cart (or paper bin) for clean, dry paper and flattened cardboard.',
   },
   TRASH: {
     id: 'TRASH',
     label: 'Trash',
+    short: 'Trash',
     sublabel: 'Not recyclable curbside',
-    color: 'gray',
-    icon: '🗑️',
+    color: 'ink',
     description:
-      'Regular trash. Montgomery County trash is processed at the Resource Recovery Facility — far better than contaminating a recycling load.',
+      'Regular trash. Montgomery County burns trash for energy at the Resource Recovery Facility, which is far better than spoiling a recycling load.',
   },
   STORE_DROPOFF: {
     id: 'STORE_DROPOFF',
     label: 'Store Drop-off',
-    sublabel: 'Plastic bags & film',
-    color: 'amber',
-    icon: '🛒',
+    short: 'Store drop-off',
+    sublabel: 'Plastic bags and film',
+    color: 'hazard',
     description:
-      'Many local grocery stores have plastic bag and film collection bins near the entrance. If you cannot get there, use the trash — never the blue bin.',
+      'Many grocery stores have a plastic bag and film collection bin near the entrance. If you cannot get to one, use the trash. Never the blue bin.',
   },
   SHADY_GROVE_HHW: {
     id: 'SHADY_GROVE_HHW',
-    label: 'Shady Grove — Hazardous Waste',
+    label: 'Shady Grove: Hazardous Waste',
+    short: 'Hazardous',
     sublabel: 'Household hazardous waste drop-off',
-    color: 'red',
-    icon: '☣️',
+    color: 'stop',
     description: `Free household hazardous waste drop-off at the ${SHADY_GROVE.name}, ${SHADY_GROVE.address}.`,
   },
   SHADY_GROVE_ELECTRONICS: {
     id: 'SHADY_GROVE_ELECTRONICS',
-    label: 'Shady Grove — Electronics',
+    label: 'Shady Grove: Electronics',
+    short: 'Electronics',
     sublabel: 'Electronics recycling',
-    color: 'purple',
-    icon: '💻',
+    color: 'plum',
     description: `Electronics recycling at the ${SHADY_GROVE.name}, ${SHADY_GROVE.address}.`,
   },
   SHADY_GROVE_METAL: {
     id: 'SHADY_GROVE_METAL',
-    label: 'Shady Grove — Scrap Metal & Bulky',
+    label: 'Shady Grove: Scrap Metal',
+    short: 'Scrap metal',
     sublabel: 'Scrap metal, tires and large items',
-    color: 'orange',
-    icon: '🔩',
+    color: 'rust',
     description: `Scrap metal, tires and bulky recyclables are accepted at the ${SHADY_GROVE.name}, ${SHADY_GROVE.address}.`,
   },
   YARD_TRIM: {
     id: 'YARD_TRIM',
     label: 'Yard Trim',
+    short: 'Yard trim',
     sublabel: 'Leaves, grass, brush',
-    color: 'lime',
-    icon: '🍂',
-    description:
-      'Curbside yard trim collection in paper yard bags or reusable open containers — never plastic bags.',
+    color: 'leaf',
+    description: 'Curbside yard trim collection in paper yard bags or reusable open containers. No plastic bags.',
   },
   FOOD_SCRAPS: {
     id: 'FOOD_SCRAPS',
-    label: 'Food Scraps / Compost',
-    sublabel: 'If enrolled, otherwise trash',
-    color: 'green',
-    icon: '🍌',
+    label: 'Food Scraps',
+    short: 'Food scraps',
+    sublabel: 'County program or compost, otherwise trash',
+    color: 'leaf',
     description:
-      'Use your county food scraps collection bin if your household is enrolled, or a backyard compost bin. Otherwise, trash.',
+      'Use your county food scraps bin if your household is signed up, or a backyard compost pile. Otherwise, trash.',
   },
   DONATE: {
     id: 'DONATE',
-    label: 'Donate / Reuse',
+    label: 'Donate',
+    short: 'Donate',
     sublabel: 'Give it a second life',
-    color: 'teal',
-    icon: '🤝',
+    color: 'ash',
     description:
-      'Usable items can be donated (including at the "Don\'t Dump — Donate" area at Shady Grove). Worn-out textiles: textile drop-off bins.',
+      'Usable items can be donated, including at the "Don\'t Dump, Donate" area at Shady Grove. Worn-out textiles go in textile drop-off bins.',
   },
   TAKE_BACK: {
     id: 'TAKE_BACK',
     label: 'Take-back Program',
+    short: 'Take-back',
     sublabel: 'Special collection',
-    color: 'rose',
-    icon: '💊',
-    description:
-      'Use a designated take-back location (for example, police station drug drop boxes or pharmacy kiosks).',
+    color: 'stop',
+    description: 'Use a take-back location, such as a police station drug drop box or a pharmacy kiosk.',
   },
 };
 
 // contaminationCheck:
-//   'grease'  — scan the item for grease/food stains (cardboard, pizza boxes)
-//   'residue' — container must be empty, rinsed and clean
-//   null      — no visual check needed
+//   'grease'  : scan the item for grease/food stains (cardboard, pizza boxes)
+//   'residue' : container must be empty, rinsed and clean
+//   null      : no visual check needed
 //
 // whenContaminated: where the item (or the contaminated part) goes when the
 // check fails.
@@ -141,7 +140,7 @@ export const ITEMS = [
       'Tear off grease-soaked sections and put them in the trash.',
       'Put the clean cardboard (usually the lid) in the mixed-paper cart.',
     ],
-    tip: 'Grease soaks into paper fibers and cannot be washed out at the mill — a few spots can spoil a whole bale.',
+    tip: 'Grease soaks into paper fibers and cannot be washed out at the mill. A few spots can spoil a whole bale.',
   },
   {
     id: 'cardboard-box',
@@ -154,7 +153,7 @@ export const ITEMS = [
     prep: [
       'Remove packing foam, bubble wrap and plastic air pillows.',
       'Flatten the box. Tape and shipping labels are OK.',
-      'Keep it dry — wet or food-stained cardboard goes in the trash.',
+      'Keep it dry. Wet or food-stained cardboard goes in the trash.',
     ],
   },
   {
@@ -211,7 +210,7 @@ export const ITEMS = [
     material: 'soiled paper',
     stream: 'TRASH',
     contaminationCheck: null,
-    prep: ['Used paper towels and napkins are food- or germ-contaminated — trash (or food scraps bin if enrolled).'],
+    prep: ['Used paper towels and napkins carry food or germs, so they go in the trash (or the food scraps bin if you are signed up).'],
     tip: 'Clean cardboard toilet-paper tubes can go in the mixed-paper cart.',
   },
   {
@@ -222,7 +221,7 @@ export const ITEMS = [
     stream: 'TRASH',
     contaminationCheck: null,
     prep: ['Paper cups have a plastic lining. When in doubt, throw it out.', 'A rigid plastic lid can be rinsed and put in the blue bin.'],
-    tip: 'Bring a reusable cup — many local cafes give a discount.',
+    tip: 'Bring a reusable cup. Many cafes give a discount for it.',
   },
 
   // ---------- Blue bin: commingled containers ----------
@@ -234,7 +233,7 @@ export const ITEMS = [
     stream: 'BLUE_BIN',
     contaminationCheck: 'residue',
     whenContaminated: 'TRASH',
-    prep: ['Empty it completely.', 'Give it a quick rinse.', 'Place loose in the blue bin — never in a bag.'],
+    prep: ['Empty it completely.', 'Give it a quick rinse.', 'Put it in the blue bin loose, never in a bag.'],
   },
   {
     id: 'plastic-container',
@@ -245,9 +244,9 @@ export const ITEMS = [
     contaminationCheck: 'residue',
     whenContaminated: 'TRASH',
     prep: [
-      'Must be EMPTY — scrape out all food.',
-      'RINSED — a quick rinse removes sauces and grease.',
-      'CLEAN — no food residue before it hits the Montgomery County blue bin.',
+      'Scrape out all the food.',
+      'Give it a quick rinse to get sauce and grease off.',
+      'It should be clean before it goes in the blue bin.',
     ],
     tip: 'One dirty container can contaminate an entire bin of otherwise good recyclables.',
   },
@@ -289,7 +288,7 @@ export const ITEMS = [
     stream: 'BLUE_BIN',
     contaminationCheck: 'residue',
     whenContaminated: 'TRASH',
-    prep: ['Must be clean — wipe off food and grease.', 'Ball up small pieces of foil so they do not get lost.'],
+    prep: ['Wipe off food and grease first.', 'Ball up small pieces of foil so they do not get lost.'],
   },
   {
     id: 'aerosol-can',
@@ -308,7 +307,7 @@ export const ITEMS = [
     stream: 'BLUE_BIN',
     contaminationCheck: 'residue',
     whenContaminated: 'TRASH',
-    prep: ['Empty and rinse.', 'Only bottles and jars — no drinking glasses, window glass or ceramics.'],
+    prep: ['Empty and rinse.', 'Only bottles and jars. Drinking glasses, window glass and ceramics go in the trash.'],
   },
   {
     id: 'carton',
@@ -333,7 +332,7 @@ export const ITEMS = [
     alert:
       'Montgomery County does not accept plastic bags in curbside recycling! Please bring this to a local grocery store drop-off or place it in the trash.',
     prep: [
-      'Never put plastic bags in the blue bin — they wrap around sorting machinery and shut down the line.',
+      'Plastic bags wrap around the sorting machines and shut the line down.',
       'Never bag your recyclables. Empty them loose into the bin.',
       'Clean, dry bags can go to a grocery store bag drop-off.',
     ],
@@ -377,7 +376,7 @@ export const ITEMS = [
     material: 'plastic',
     stream: 'TRASH',
     contaminationCheck: null,
-    prep: ['Too small and light to be sorted — they fall through the machinery.'],
+    prep: ['Too small and light to sort. They fall through the machines.'],
   },
   {
     id: 'drinking-glass',
@@ -388,7 +387,7 @@ export const ITEMS = [
     alternateStream: 'DONATE',
     contaminationCheck: null,
     prep: [
-      'Only glass bottles and jars go in the blue bin — drinking glasses and ceramics melt at different temperatures.',
+      'Only glass bottles and jars go in the blue bin. Drinking glasses and ceramics melt at different temperatures.',
       'Wrap broken pieces before putting them in the trash. Donate usable dishes.',
     ],
   },
@@ -431,7 +430,7 @@ export const ITEMS = [
     material: 'hazardous',
     stream: 'SHADY_GROVE_HHW',
     contaminationCheck: null,
-    alert: 'Car batteries are hazardous. Never put them in trash or recycling — take them to Shady Grove.',
+    alert: 'Car batteries are hazardous. They never go in trash or recycling. Take them to Shady Grove.',
     prep: ['Keep upright and transport in a sturdy box.', 'Do not tape over or drain the battery.'],
   },
   {
@@ -482,7 +481,7 @@ export const ITEMS = [
     material: 'hazardous',
     stream: 'SHADY_GROVE_HHW',
     contaminationCheck: null,
-    prep: ['Contains mercury — keep unbroken.', 'Standard incandescent and LED bulbs go in the trash.'],
+    prep: ['Contains mercury, so keep it in one piece.', 'Standard incandescent and LED bulbs go in the trash.'],
   },
   {
     id: 'sharps',
@@ -491,8 +490,8 @@ export const ITEMS = [
     material: 'medical',
     stream: 'TRASH',
     contaminationCheck: null,
-    alert: 'Never put needles in recycling — sorting workers handle material by hand.',
-    prep: ['Place in a hard plastic container (like a detergent jug), seal the lid with tape, label "SHARPS — DO NOT RECYCLE", and put it in the trash.'],
+    alert: 'Never put needles in recycling. Sorting workers handle material by hand.',
+    prep: ['Place in a hard plastic container (like a detergent jug), seal the lid with tape, label it "SHARPS, DO NOT RECYCLE", and put it in the trash.'],
   },
   {
     id: 'medication',
@@ -581,7 +580,7 @@ export const ITEMS = [
     material: 'organic',
     stream: 'YARD_TRIM',
     contaminationCheck: null,
-    prep: ['Use paper yard-waste bags or a reusable open container — no plastic bags.', 'Bundle branches no longer than 4 feet.'],
+    prep: ['Use paper yard-waste bags or a reusable open container, not plastic bags.', 'Bundle branches no longer than 4 feet.'],
   },
   {
     id: 'books',
@@ -640,7 +639,7 @@ export function searchItems(query, limit = 12) {
 
 // Combine an item with a contamination analysis result into a final verdict
 // the UI can render. `contamination` is the output of analyzeImage() (or a
-// manual override) — shape: { level: 'clean' | 'light' | 'heavy' | 'unknown' }.
+// manual override), shaped like { level: 'clean' | 'light' | 'heavy' | 'unknown' }.
 export function decide(itemId, contamination = null) {
   const item = getItem(itemId);
   if (!item) return null;
@@ -666,25 +665,25 @@ export function decide(itemId, contamination = null) {
     verdict.contaminated = true;
     if (item.contaminationCheck === 'grease') {
       if (level === 'light') {
-        // Some sections are stained — split the item.
+        // Some sections are stained, so split the item.
         verdict.split = true;
         verdict.steps = [
-          'Tear off the grease-stained sections → TRASH.',
-          `Put the clean cardboard → ${getStream(item.stream).label.toUpperCase()}.`,
+          'Tear off the greasy or stained sections and put them in the trash.',
+          `Put the clean cardboard in the ${getStream(item.stream).label.toLowerCase()}.`,
           ...item.prep.filter((p) => !/grease|clean cardboard/i.test(p)),
         ];
       } else {
         verdict.stream = getStream(item.whenContaminated);
         verdict.steps = [
-          'This item is heavily grease- or food-soaked. Put it in the TRASH.',
-          'Greasy paper cannot be recycled — it ruins the paper bale.',
+          'This one is soaked with grease or food, so the whole thing goes in the trash.',
+          'Greasy paper cannot be recycled. It ruins the paper bale.',
         ];
       }
     } else if (item.contaminationCheck === 'residue') {
       verdict.steps = [
-        'We spotted what looks like food or liquid residue.',
-        'Empty and rinse it, then place it in the blue bin.',
-        'If it cannot be cleaned (e.g. baked-on food), put it in the TRASH.',
+        'There looks to be food or liquid left inside.',
+        'Empty it and rinse it, then put it in the blue bin.',
+        'If it will not come clean (baked-on food, for example), put it in the trash.',
       ];
     }
   }

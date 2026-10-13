@@ -17,7 +17,7 @@ export const LIMITS = {
 };
 
 export const BATCH_CHECKLIST = [
-  { id: 'no-bags', label: 'Recyclables are loose in the bin — no plastic bags' },
+  { id: 'no-bags', label: 'Recyclables are loose in the bin, not in a plastic bag' },
   { id: 'rinsed', label: 'Containers are empty, rinsed and clean' },
   { id: 'cardboard-flat', label: 'Cardboard is flattened and grease-free' },
   { id: 'paper-separate', label: 'Paper is in the mixed-paper cart, containers in the blue bin' },

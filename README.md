@@ -1,7 +1,7 @@
-# EcoSort ♻️ — Montgomery County, MD
+# EcoSort
 
 EcoSort is a web app that cuts recycling contamination in **Montgomery County, Maryland (Congressional District 8)**.
-Students scan an item with their webcam or a photo, and EcoSort:
+Young people scan an item with their phone camera or a photo, and EcoSort:
 
 1. **identifies the item** with TensorFlow.js (MobileNet) running entirely in the browser,
 2. **checks it for contamination**: grease stains on cardboard and pizza boxes, food residue on containers, and
@@ -9,7 +9,7 @@ Students scan an item with their webcam or a photo, and EcoSort:
 3. **tells them where it goes** under Montgomery County DEP rules: blue bin, mixed-paper cart, trash, store drop-off,
    or the **Shady Grove Processing Facility and Transfer Station**.
 
-Students also earn points for their school or neighborhood cluster on a seasonal leaderboard.
+Players earn points on a seasonal individual leaderboard.
 
 ## Features
 
@@ -21,9 +21,9 @@ Students also earn points for their school or neighborhood cluster on a seasonal
 | Plastic-bag alert: *“Montgomery County does not accept plastic bags in curbside recycling!…”* | `shared/rules.js` |
 | Montgomery County rules engine (~45 items, 11 disposal streams, Shady Grove routing) | `shared/rules.js` |
 | Searchable sorting guide | `src/pages/Guide.jsx` |
-| Accounts tied to an MCPS school or neighborhood cluster | `shared/schools.js`, `src/pages/Auth.jsx` |
+| Accounts with a display name only (no email, school or age) | `src/pages/Auth.jsx` |
 | Points for scans, contamination catches, weekly quizzes and household batch logs | `shared/points.js`, `server/app.js` |
-| Student, school (points per active student) and cluster leaderboards, with prizes and a competition window | `src/pages/Leaderboard.jsx`, `server/competition.js` |
+| Individual leaderboard with prizes and a competition window | `src/pages/Leaderboard.jsx`, `server/competition.js` |
 
 ## Tech stack
 
@@ -31,6 +31,12 @@ Students also earn points for their school or neighborhood cluster on a seasonal
 - **Vision:** TensorFlow.js and `@tensorflow-models/mobilenet` (lazy-loaded), plus a custom HSV pixel analyzer for contamination
 - **Backend:** Node.js and Express. Passwords are hashed with scrypt and logins use HMAC-signed tokens (no extra crypto dependencies).
 - **Database:** PostgreSQL when `DATABASE_URL` is set. Otherwise a JSON file store is used, so there is zero setup for local development.
+
+## Design
+
+The look is based on recycling bin labels: flat solid colors (bin blue, kraft, black, hazard yellow), Barlow Condensed
+headings, square corners, and no gradients, shadows or emoji. The colors are defined in `tailwind.config.js` and the
+shared styles in `src/index.css`. Copy stays plain and short. Write full sentences instead of using em dashes.
 
 ## Getting started
 
@@ -49,7 +55,7 @@ SESSION_SECRET=$(openssl rand -hex 32) DATABASE_URL=postgres://… npm start   #
 The database schema is created automatically on startup. See `.env.example` for all settings, including the competition window.
 
 The webcam needs a secure context, which means `https://` or `localhost`. The MobileNet weights (about 14 MB) download
-once from TensorFlow Hub and are cached by the browser. If they cannot load, students can still pick the item by name,
+once from TensorFlow Hub and are cached by the browser. If they cannot load, people can still pick the item by name,
 and the contamination check still runs on their photo.
 
 ## Free hosting (Render + Neon)
@@ -83,14 +89,14 @@ MobileNet tells us **what** the item is. `shared/vision/contamination.js` then d
 - **Residue (bottles, tubs, cans, jars, cartons):** warm, saturated patches near the center of the frame are flagged as
   possible food or liquid residue. The app always shows the county's *empty, rinsed, clean* rule.
 
-Both checks are heuristics. Students can correct the item or its condition in one tap.
+Both checks are heuristics. People can correct the item or its condition in one tap.
 
 ## Anti-farming and youth safety
 
 - Daily caps: 60 scan points and 2 batch logs per rolling 24 hours. One quiz attempt per week. Requests are serialized
   per user so parallel requests cannot get around the caps.
 - Quiz answers stay on the server and are scored there.
-- No email, phone number or full name is collected. Students choose a display name, and the app suggests a first name
+- No email, phone number or full name is collected. Players choose a display name, and the app suggests a first name
   and last initial.
 
 ## Disclaimer

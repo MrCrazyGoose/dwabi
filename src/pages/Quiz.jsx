@@ -34,7 +34,7 @@ export default function Quiz() {
     }
   };
 
-  if (!quiz) return <p className="text-slate-500">{error || 'Loading quiz…'}</p>;
+  if (!quiz) return <p className="text-ash">{error || 'Loading...'}</p>;
 
   const reviewById = Object.fromEntries((result?.review || []).map((r) => [r.id, r]));
   const allAnswered = quiz.questions.every((q) => answers[q.id] !== undefined);
@@ -42,21 +42,21 @@ export default function Quiz() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <p className="text-sm font-semibold text-eco-700">Week {quiz.week.split('-W')[1]}</p>
-        <h1 className="text-3xl font-extrabold tracking-tight">Zero-Waste Quiz</h1>
-        <p className="mt-1 text-slate-600">
-          {quiz.questions.length} questions · {POINTS.QUIZ_PER_CORRECT} points each · +{POINTS.QUIZ_PERFECT_BONUS} for a
-          perfect score. One attempt per week — a new quiz unlocks every Monday.
+        <p className="tag bg-ink text-white">Week {Number(quiz.week.split('-W')[1])}</p>
+        <h1 className="mt-3 text-5xl">Weekly quiz</h1>
+        <p className="mt-2 text-lg">
+          Five questions, {POINTS.QUIZ_PER_CORRECT} points each, and {POINTS.QUIZ_PERFECT_BONUS} more if you get all
+          five. One try per week. A new set comes out every Monday.
         </p>
       </div>
 
       {result && (
-        <div className="rounded-2xl bg-eco-600 p-6 text-white">
-          <p className="text-sm font-semibold uppercase tracking-wide text-eco-100">This week's result</p>
-          <p className="mt-1 text-3xl font-extrabold">
-            {result.correct}/{result.total} correct · +{result.points} pts
+        <div className="border-2 border-ink bg-bin p-5 text-white">
+          <p className="font-display text-sm font-bold uppercase tracking-wider opacity-80">This week</p>
+          <p className="mt-1 font-display text-4xl font-extrabold uppercase">
+            {result.correct} of {result.total} right, +{result.points}
           </p>
-          <p className="mt-1 text-eco-100">{result.correct === result.total ? 'Perfect score! 🌟' : 'Review the answers below and come back next week.'}</p>
+          <p className="mt-1">The answers are below. Come back Monday for the next set.</p>
         </div>
       )}
 
@@ -64,48 +64,43 @@ export default function Quiz() {
         {quiz.questions.map((q, qi) => {
           const review = reviewById[q.id];
           return (
-            <li key={q.id} className="card p-5">
-              <p className="font-semibold">
-                <span className="mr-2 text-slate-400">{qi + 1}.</span>
+            <li key={q.id} className="panel">
+              <p className="flex gap-3 border-b-2 border-ink p-4 text-lg font-semibold">
+                <span className="font-display text-2xl font-bold leading-none">{qi + 1}</span>
                 {q.question}
               </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2 p-4 sm:grid-cols-2">
                 {q.choices.map((c, ci) => {
-                  let cls = 'ring-slate-300 bg-white hover:bg-slate-50';
+                  let cls = 'bg-white hover:bg-paper';
                   if (review) {
-                    if (ci === review.answer) cls = 'ring-green-400 bg-green-50 text-green-900';
-                    else if (ci === review.chosen) cls = 'ring-red-300 bg-red-50 text-red-900';
-                    else cls = 'ring-slate-200 bg-white text-slate-500';
+                    if (ci === review.answer) cls = 'bg-leaf text-white';
+                    else if (ci === review.chosen) cls = 'bg-stop text-white';
+                    else cls = 'bg-white text-ash';
                   } else if (answers[q.id] === ci) {
-                    cls = 'ring-eco-500 ring-2 bg-eco-50';
+                    cls = 'bg-ink text-white';
                   }
                   return (
                     <button
                       key={c}
                       disabled={Boolean(result)}
                       onClick={() => setAnswers((a) => ({ ...a, [q.id]: ci }))}
-                      className={`rounded-xl px-3 py-2 text-left text-sm ring-1 transition ${cls}`}
+                      className={`border-2 border-ink px-3 py-2 text-left ${cls}`}
                     >
                       {c}
                     </button>
                   );
                 })}
               </div>
-              {review && (
-                <p className={`mt-3 text-sm ${review.correct ? 'text-green-800' : 'text-slate-700'}`}>
-                  {review.correct ? '✅ ' : '💡 '}
-                  {review.explanation}
-                </p>
-              )}
+              {review && <p className="border-t-2 border-ink px-4 py-3 text-sm">{review.explanation}</p>}
             </li>
           );
         })}
       </ol>
 
-      {error && <p className="text-sm text-red-700">{error}</p>}
+      {error && <p className="text-stop">{error}</p>}
       {!result && (
-        <button className="btn-primary w-full sm:w-auto" disabled={!allAnswered || submitting} onClick={submit}>
-          {submitting ? 'Submitting…' : 'Submit answers'}
+        <button className="btn-primary" disabled={!allAnswered || submitting} onClick={submit}>
+          {submitting ? 'Sending...' : 'Submit answers'}
         </button>
       )}
     </div>

@@ -32,7 +32,7 @@ export class FileStore {
     return this.writing;
   }
 
-  async createUser({ username, displayName, passwordHash, schoolId, grade }) {
+  async createUser({ username, displayName, passwordHash }) {
     const key = username.toLowerCase();
     if (this.data.users.some((u) => u.username.toLowerCase() === key)) {
       const err = new Error('Username already taken');
@@ -44,8 +44,6 @@ export class FileStore {
       username,
       displayName,
       passwordHash,
-      schoolId,
-      grade,
       createdAt: new Date().toISOString(),
     };
     this.data.users.push(user);
@@ -86,31 +84,17 @@ export class FileStore {
     return totals;
   }
 
-  async leaderboardStudents({ start, end, limit = 50 }) {
+  async leaderboard({ start, end, limit = 50 }) {
     const totals = this.totals({ start, end });
     const rows = [];
     for (const [userId, points] of totals) {
       const u = await this.getUserById(userId);
       if (u && points > 0) {
-        rows.push({ id: u.id, username: u.username, displayName: u.displayName, schoolId: u.schoolId, points });
+        rows.push({ id: u.id, username: u.username, displayName: u.displayName, points });
       }
     }
     rows.sort((a, b) => b.points - a.points || a.displayName.localeCompare(b.displayName));
     return rows.slice(0, limit);
-  }
-
-  async pointsBySchool({ start, end }) {
-    const totals = this.totals({ start, end });
-    const bySchool = new Map();
-    for (const [userId, points] of totals) {
-      const u = await this.getUserById(userId);
-      if (!u || points <= 0) continue;
-      const row = bySchool.get(u.schoolId) || { schoolId: u.schoolId, points: 0, students: 0 };
-      row.points += points;
-      row.students += 1;
-      bySchool.set(u.schoolId, row);
-    }
-    return [...bySchool.values()];
   }
 
   async close() {

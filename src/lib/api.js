@@ -13,7 +13,7 @@ export function setToken(token) {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
-    // Storage unavailable (private mode) — session lasts until reload.
+    // Storage unavailable (private mode), so the session lasts until reload.
   }
 }
 

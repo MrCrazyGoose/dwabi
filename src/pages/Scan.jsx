@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { decide, getItem } from '../../shared/rules.js';
-import { matchPredictions } from '../../shared/vision/classMap.js';
+import { matchPredictions, suggestItems } from '../../shared/vision/classMap.js';
 import { analyzeImage } from '../../shared/vision/contamination.js';
 import { POINTS } from '../../shared/points.js';
-import { classify, loadModel, loadImageFile, toCanvas } from '../lib/vision.js';
+import { classify, cropToGuide, loadModel, loadImageFile, toCanvas } from '../lib/vision.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import ItemSearch from '../components/ItemSearch.jsx';
@@ -12,12 +12,12 @@ import VerdictCard from '../components/VerdictCard.jsx';
 
 const LEVEL_OPTIONS = {
   grease: [
-    { level: 'clean', label: 'Clean & dry' },
+    { level: 'clean', label: 'Clean and dry' },
     { level: 'light', label: 'Some greasy spots' },
-    { level: 'heavy', label: 'Soaked / covered in food' },
+    { level: 'heavy', label: 'Soaked or covered in food' },
   ],
   residue: [
-    { level: 'clean', label: 'Empty & rinsed' },
+    { level: 'clean', label: 'Empty and rinsed' },
     { level: 'light', label: 'Has food or liquid left' },
   ],
 };
@@ -79,13 +79,13 @@ function drawOverlay(canvas, capture, analysis) {
     const x = (i % n) * cw;
     const y = Math.floor(i / n) * ch;
     if (cell.flagged) {
-      ctx.fillStyle = 'rgba(220, 38, 38, 0.38)';
+      ctx.fillStyle = 'rgba(198, 40, 40, 0.42)';
       ctx.fillRect(x, y, cw, ch);
-      ctx.strokeStyle = 'rgba(185, 28, 28, 0.9)';
+      ctx.strokeStyle = '#C62828';
       ctx.lineWidth = 2;
       ctx.strokeRect(x + 1, y + 1, cw - 2, ch - 2);
     } else if (cell.isMaterial) {
-      ctx.strokeStyle = 'rgba(22, 163, 74, 0.7)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x + 1, y + 1, cw - 2, ch - 2);
     }
@@ -125,10 +125,10 @@ export default function Scan() {
     const tick = async () => {
       if (stopped || !videoRef.current) return;
       try {
-        const preds = await classify(videoRef.current, 3);
+        const preds = await classify(cropToGuide(videoRef.current, 224), 3);
         if (stopped) return;
         const m = matchPredictions(preds);
-        setLiveLabel(m ? getItem(m.itemId).name : preds[0]?.className.split(',')[0]);
+        setLiveLabel(m ? getItem(m.itemId).name : null);
       } catch {
         // ignore transient frame errors
       }
@@ -181,7 +181,7 @@ export default function Scan() {
   const takePhoto = () => {
     const video = videoRef.current;
     if (!video || !cameraReady) return;
-    runClassification(toCanvas(video), 'camera');
+    runClassification(cropToGuide(video), 'camera');
   };
 
   const onFile = async (e) => {
@@ -234,18 +234,20 @@ export default function Scan() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Scan an item</h1>
-        <p className="mt-1 text-slate-600">
-          Hold the item up to your camera or upload a photo. EcoSort identifies it, checks for contamination, and tells
-          you exactly where it goes in Montgomery County.
+        <h1 className="text-5xl">Scan an item</h1>
+        <p className="mt-2 max-w-2xl text-lg">
+          Point your camera at it or upload a photo. You get the bin it goes in under Montgomery County rules, plus a
+          check for grease and leftover food.
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* ---------- Capture column ---------- */}
         <section className="space-y-4">
-          <div className="inline-flex rounded-xl bg-slate-200/70 p-1 text-sm font-semibold" role="tablist">
-            {['camera', 'upload'].map((m) => (
+          <div className="flex" role="tablist">
+            {[
+              ['camera', 'Camera'],
+              ['upload', 'Upload a photo'],
+            ].map(([m, label]) => (
               <button
                 key={m}
                 role="tab"
@@ -254,102 +256,96 @@ export default function Scan() {
                   setMode(m);
                   reset();
                 }}
-                className={`rounded-lg px-4 py-1.5 transition ${mode === m ? 'bg-white shadow-sm' : 'text-slate-600'}`}
+                className={`-ml-0.5 border-2 border-ink px-4 py-1.5 font-display text-lg font-bold uppercase first:ml-0 ${
+                  mode === m ? 'bg-ink text-white' : 'bg-white'
+                }`}
               >
-                {m === 'camera' ? '📷 Webcam' : '🖼️ Upload photo'}
+                {label}
               </button>
             ))}
           </div>
 
-          <div className="card overflow-hidden">
-            <div className="relative aspect-[4/3] bg-slate-900">
+          <div className="panel">
+            <div className="relative aspect-[4/3] bg-ink">
               {capture ? (
                 <canvas ref={overlayRef} className="h-full w-full object-contain" />
               ) : mode === 'camera' ? (
                 <>
                   <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
                   {!cameraReady && !cameraError && (
-                    <p className="absolute inset-0 flex items-center justify-center text-sm text-slate-300">Starting camera…</p>
+                    <p className="absolute inset-0 flex items-center justify-center text-white/70">Starting camera...</p>
                   )}
                   {cameraError && (
-                    <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-slate-200">{cameraError}</p>
+                    <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-white">{cameraError}</p>
                   )}
-                  {liveLabel && cameraReady && (
-                    <span className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white">
-                      Looks like: {liveLabel}
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 aspect-square h-[70%] -translate-x-1/2 -translate-y-1/2 border-2 border-dashed border-white/80" />
+                  {cameraReady && (
+                    <span className="absolute bottom-0 left-0 bg-ink px-2 py-1 font-display text-sm font-bold uppercase text-white">
+                      {liveLabel ? `Looks like: ${liveLabel}` : 'Fill the box with the item'}
                     </span>
                   )}
-                  <div className="pointer-events-none absolute inset-[15%] rounded-2xl border-2 border-dashed border-white/50" />
                 </>
               ) : (
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-300 hover:text-white"
+                  className="flex h-full w-full items-center justify-center font-display text-2xl font-bold uppercase text-white/80 hover:text-white"
                 >
-                  <span className="text-5xl">🖼️</span>
-                  <span className="text-sm font-semibold">Choose or take a photo</span>
+                  Choose a photo
                 </button>
               )}
               {busy && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-sm font-semibold text-white">
-                  Analyzing…
+                <div className="absolute inset-0 flex items-center justify-center bg-ink/60 font-display text-2xl font-bold uppercase text-white">
+                  Checking...
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 p-3">
+            <div className="flex flex-wrap items-center gap-3 border-t-2 border-ink p-3">
               {capture ? (
-                <button className="btn-secondary" onClick={reset}>↺ Scan another item</button>
+                <button className="btn-secondary" onClick={reset}>Scan another</button>
               ) : mode === 'camera' ? (
-                <button className="btn-primary" onClick={takePhoto} disabled={!cameraReady || busy}>
-                  Capture & analyze
-                </button>
+                <button className="btn-primary" onClick={takePhoto} disabled={!cameraReady || busy}>Take photo</button>
               ) : (
-                <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={busy}>
-                  Choose photo
-                </button>
+                <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={busy}>Choose photo</button>
               )}
               <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
-              <span className="ml-auto text-xs text-slate-500">
-                {modelState === 'loading' && 'Loading on-device AI model…'}
-                {modelState === 'ready' && '✓ On-device AI ready'}
-                {modelState === 'error' && 'AI model unavailable — pick the item below; the contamination check still runs'}
+              <span className="ml-auto text-sm text-ash">
+                {modelState === 'loading' && 'Loading the recognition model...'}
+                {modelState === 'ready' && 'Recognition ready'}
+                {modelState === 'error' && 'Recognition unavailable. Pick the item yourself.'}
               </span>
             </div>
           </div>
 
           {capture && analysis && !override && analysis.level !== 'unknown' && (
-            <div className="card p-4 text-sm">
-              <h3 className="font-bold">Contamination check</h3>
+            <div className="panel p-4">
+              <h3 className="text-xl">Contamination check</h3>
               {analysis.kind === 'grease' ? (
-                <p className="mt-1 text-slate-600">
-                  Checked {analysis.materialCells} cardboard sections:{' '}
-                  <strong className={analysis.flaggedCells ? 'text-red-700' : 'text-green-700'}>
-                    {analysis.flaggedCells} look greasy or food-stained
-                  </strong>
-                  . <span className="text-red-700">Red</span> squares = tear off and trash;{' '}
-                  <span className="text-green-700">green</span> = clean cardboard.
+                <p className="mt-1">
+                  {analysis.flaggedCells === 0
+                    ? `No grease spotted across ${analysis.materialCells} sections.`
+                    : `${analysis.flaggedCells} of ${analysis.materialCells} sections look greasy or stained. Red squares go in the trash.`}
                 </p>
               ) : (
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1">
                   {analysis.level === 'light'
-                    ? 'We spotted colors that look like food or liquid residue (highlighted).'
-                    : 'No obvious residue spotted — still give it a rinse!'}
+                    ? 'Some spots look like leftover food or liquid. They are marked in red.'
+                    : 'Nothing obvious left inside. Rinse it anyway.'}
                 </p>
               )}
             </div>
           )}
 
           {predictions.length > 0 && (
-            <details className="card p-4 text-sm">
-              <summary className="cursor-pointer font-semibold text-slate-700">What the AI saw</summary>
-              <ul className="mt-2 space-y-1">
+            <details className="panel p-4">
+              <summary className="cursor-pointer font-display font-bold uppercase tracking-wide">Model guesses</summary>
+              <ul className="mt-3 space-y-1.5 text-sm">
                 {predictions.map((p) => (
-                  <li key={p.className} className="flex items-center gap-2">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full bg-eco-500" style={{ width: `${Math.round(p.probability * 100)}%` }} />
+                  <li key={p.className} className="flex items-center gap-3">
+                    <div className="h-2.5 flex-1 border border-ink bg-white">
+                      <div className="h-full bg-ink" style={{ width: `${Math.round(p.probability * 100)}%` }} />
                     </div>
-                    <span className="w-48 truncate text-slate-600">{p.className.split(',')[0]}</span>
-                    <span className="w-10 text-right tabular-nums text-slate-500">{Math.round(p.probability * 100)}%</span>
+                    <span className="w-40 truncate">{p.className.split(',')[0]}</span>
+                    <span className="w-10 text-right tabular-nums">{Math.round(p.probability * 100)}%</span>
                   </li>
                 ))}
               </ul>
@@ -357,37 +353,39 @@ export default function Scan() {
           )}
         </section>
 
-        {/* ---------- Result column ---------- */}
         <section className="space-y-4">
-          <div className="card p-4">
-            <label className="label">
-              {item ? 'Not the right item? Pick the correct one:' : 'Or search for the item:'}
-            </label>
+          <div className="panel p-4">
+            <label className="label">{item ? 'Wrong item? Search for it' : 'Or search for it'}</label>
             <ItemSearch onSelect={chooseItem} />
             {match && item && match.itemId === item.id && (
-              <p className="mt-2 text-xs text-slate-500">
-                Detected “{match.label.split(',')[0]}” ({Math.round(match.probability * 100)}% confidence) → {item.name}
+              <p className="mt-2 text-sm text-ash">
+                Recognized as "{match.label.split(',')[0]}" ({Math.round(match.probability * 100)}% sure).
               </p>
             )}
             {capture && !busy && !match && !item && (
-              <p className="mt-2 text-sm text-amber-700">
-                We could not confidently identify that item. Search for it above — the contamination check will still run
-                on your photo.
-              </p>
+              <div className="mt-4">
+                <p className="font-display text-lg font-bold uppercase">Not sure. Which one is it?</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {suggestItems(predictions).map((id) => (
+                    <button key={id} type="button" className="btn-secondary !px-3 !py-1 !text-base" onClick={() => chooseItem(getItem(id))}>
+                      {getItem(id).name.replace(/ \(.*\)$/, '')}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-sm text-ash">Not here? Search above. The grease check still runs on your photo.</p>
+              </div>
             )}
           </div>
 
           {item?.contaminationCheck && (needsManualLevel || override) && (
-            <div className="card p-4">
-              <p className="label">
-                {item.contaminationCheck === 'grease' ? 'How does it look?' : 'Is it empty, rinsed and clean?'}
-              </p>
+            <div className="panel p-4">
+              <p className="label">{item.contaminationCheck === 'grease' ? 'How does it look?' : 'Is it empty and rinsed?'}</p>
               <div className="flex flex-wrap gap-2">
                 {LEVEL_OPTIONS[item.contaminationCheck].map((o) => (
                   <button
                     key={o.level}
                     onClick={() => setOverride(o.level)}
-                    className={level === o.level ? 'btn-primary' : 'btn-secondary'}
+                    className={`${level === o.level ? 'btn-primary' : 'btn-secondary'} !px-3 !py-1 !text-base`}
                   >
                     {o.label}
                   </button>
@@ -396,45 +394,43 @@ export default function Scan() {
             </div>
           )}
           {item?.contaminationCheck && !needsManualLevel && !override && analysis && (
-            <button className="text-sm font-medium text-eco-700 underline" onClick={() => setOverride(analysis.level)}>
-              Detection wrong? Set the condition yourself
+            <button className="text-sm font-semibold underline" onClick={() => setOverride(analysis.level)}>
+              Check got it wrong? Set the condition yourself
             </button>
           )}
 
           <VerdictCard verdict={verdict} />
 
           {verdict && (
-            <div className="card flex flex-wrap items-center gap-3 p-4">
+            <div className="panel flex flex-wrap items-center gap-3 p-4">
               {user ? (
                 logState?.points !== undefined ? (
-                  <p className="font-semibold text-eco-700">
-                    🎉 +{logState.points} points!
-                    {logState.capped && <span className="ml-1 font-normal text-slate-500">(daily scan limit reached)</span>}
+                  <p className="font-display text-2xl font-bold uppercase">
+                    +{logState.points} points
+                    {logState.capped && <span className="ml-2 font-sans text-sm normal-case text-ash">Daily scan limit reached.</span>}
                   </p>
                 ) : (
                   <>
                     <button className="btn-primary" onClick={logScan} disabled={logState?.saving}>
-                      I sorted it correctly · +{potentialPoints} pts
+                      Sorted it. Log +{potentialPoints}
                     </button>
                     {contaminationFound && (
-                      <span className="text-xs text-slate-500">Includes +{POINTS.CONTAMINATION_BONUS} contamination-catch bonus</span>
+                      <span className="text-sm text-ash">Includes {POINTS.CONTAMINATION_BONUS} for catching a problem item.</span>
                     )}
                   </>
                 )
               ) : (
-                <p className="text-sm text-slate-600">
-                  <Link to="/register" className="font-semibold text-eco-700 underline">Join the challenge</Link> to earn
-                  points for your school.
+                <p>
+                  <Link to="/register" className="font-semibold underline">Sign up</Link> to earn points for this.
                 </p>
               )}
-              {logState?.error && <p className="w-full text-sm text-red-700">{logState.error}</p>}
+              {logState?.error && <p className="w-full text-sm text-stop">{logState.error}</p>}
             </div>
           )}
 
           {!verdict && (
-            <div className="card p-6 text-center text-sm text-slate-500">
-              <p className="text-4xl">♻️</p>
-              <p className="mt-2">Your sorting result will appear here.</p>
+            <div className="border-2 border-dashed border-ink/40 p-8 text-center text-ash">
+              The bin it goes in will show up here.
             </div>
           )}
         </section>
