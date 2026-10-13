@@ -8,11 +8,17 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL,
   display_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  school_id TEXT NOT NULL,
-  grade INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower ON users (lower(username));
+
+-- Early versions required a school. Keep old data but stop requiring it.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'school_id') THEN
+    ALTER TABLE users ALTER COLUMN school_id DROP NOT NULL;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS point_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,8 +39,6 @@ function toUser(row) {
     username: row.username,
     displayName: row.display_name,
     passwordHash: row.password_hash,
-    schoolId: row.school_id,
-    grade: row.grade,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -59,12 +63,12 @@ export class PgStore {
     await this.pool.query(SCHEMA);
   }
 
-  async createUser({ username, displayName, passwordHash, schoolId, grade }) {
+  async createUser({ username, displayName, passwordHash }) {
     try {
       const { rows } = await this.pool.query(
-        `INSERT INTO users (username, display_name, password_hash, school_id, grade)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [username, displayName, passwordHash, schoolId, grade],
+        `INSERT INTO users (username, display_name, password_hash)
+         VALUES ($1, $2, $3) RETURNING *`,
+        [username, displayName, passwordHash],
       );
       return toUser(rows[0]);
     } catch (err) {
@@ -107,9 +111,9 @@ export class PgStore {
     return rows.map(toEvent);
   }
 
-  async leaderboardStudents({ start, end, limit = 50 }) {
+  async leaderboard({ start, end, limit = 50 }) {
     const { rows } = await this.pool.query(
-      `SELECT u.id, u.username, u.display_name, u.school_id, SUM(e.points)::int AS points
+      `SELECT u.id, u.username, u.display_name, SUM(e.points)::int AS points
        FROM point_events e JOIN users u ON u.id = e.user_id
        WHERE e.created_at BETWEEN $1 AND $2
        GROUP BY u.id
@@ -122,24 +126,8 @@ export class PgStore {
       id: r.id,
       username: r.username,
       displayName: r.display_name,
-      schoolId: r.school_id,
       points: r.points,
     }));
-  }
-
-  async pointsBySchool({ start, end }) {
-    const { rows } = await this.pool.query(
-      `SELECT school_id, SUM(points)::int AS points, COUNT(*)::int AS students FROM (
-         SELECT u.school_id, SUM(e.points) AS points
-         FROM point_events e JOIN users u ON u.id = e.user_id
-         WHERE e.created_at BETWEEN $1 AND $2
-         GROUP BY u.id
-         HAVING SUM(e.points) > 0
-       ) per_user
-       GROUP BY school_id`,
-      [start, end],
-    );
-    return rows.map((r) => ({ schoolId: r.school_id, points: r.points, students: r.students }));
   }
 
   async close() {

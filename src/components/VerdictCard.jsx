@@ -1,12 +1,26 @@
-import { SHADY_GROVE } from '../../shared/rules.js';
+import { SHADY_GROVE, getStream } from '../../shared/rules.js';
 import { streamStyle } from '../lib/streamStyles.js';
 import StreamBadge from './StreamBadge.jsx';
 
-export function AlertBanner({ children }) {
+export function WarningSign({ title = 'Not in the blue bin', children }) {
   return (
-    <div role="alert" className="flex gap-3 rounded-2xl border-2 border-red-300 bg-red-50 p-4 text-red-900">
-      <span className="text-2xl" aria-hidden>🚫</span>
-      <p className="font-semibold leading-snug">{children}</p>
+    <div role="alert" className="border-2 border-ink bg-white">
+      <div className="stripe h-3" />
+      <div className="p-4">
+        <p className="font-display text-xl font-extrabold uppercase leading-tight">{title}</p>
+        <p className="mt-1 font-medium">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+function BinSign({ stream, eyebrow, note }) {
+  const s = streamStyle(stream);
+  return (
+    <div className={`flex-1 p-4 ${s.solid}`}>
+      <p className="font-display text-sm font-bold uppercase tracking-wider opacity-80">{eyebrow}</p>
+      <p className="mt-1 font-display text-4xl font-extrabold uppercase leading-none sm:text-5xl">{stream.label}</p>
+      {note && <p className="mt-2 text-sm font-medium opacity-90">{note}</p>}
     </div>
   );
 }
@@ -14,61 +28,62 @@ export function AlertBanner({ children }) {
 export default function VerdictCard({ verdict }) {
   if (!verdict) return null;
   const { item, stream, alternateStream, alert, steps, reminder, split, contaminated } = verdict;
-  const s = streamStyle(stream);
   const toShadyGrove = stream.id.startsWith('SHADY_GROVE');
 
   return (
     <div className="space-y-4">
-      {alert && <AlertBanner>{alert}</AlertBanner>}
+      {alert && <WarningSign>{alert}</WarningSign>}
 
-      <div className={`rounded-2xl p-5 ring-1 ${s.bg} ${s.ring}`}>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.name}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <span className="text-4xl" aria-hidden>{split ? '✂️' : stream.icon}</span>
-          <div>
-            <p className={`text-2xl font-extrabold ${s.text}`}>
-              {split ? `Split it: clean part → ${stream.label}, greasy part → Trash` : stream.label}
-            </p>
-            <p className="text-sm text-slate-600">{stream.sublabel}</p>
-          </div>
+      <div className="panel">
+        <div className="flex items-center justify-between gap-3 border-b-2 border-ink px-4 py-2">
+          <p className="font-display text-base font-bold uppercase tracking-wide">{item.name}</p>
+          {contaminated && !split && <span className="tag bg-hazard text-ink">Contaminated</span>}
         </div>
-        {contaminated && !split && (
-          <p className="mt-3 inline-block rounded-lg bg-white/70 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
-            ⚠️ Contamination detected
-          </p>
+        {split ? (
+          <div className="flex flex-col sm:flex-row">
+            <BinSign stream={stream} eyebrow="Clean part" />
+            <BinSign stream={getStream('TRASH')} eyebrow="Greasy part" />
+          </div>
+        ) : (
+          <BinSign stream={stream} eyebrow="Goes in" note={stream.sublabel} />
         )}
-        <p className="mt-3 text-sm text-slate-700">{stream.description}</p>
-        {alternateStream && (
-          <p className="mt-2 text-sm text-slate-600">
-            Alternative: <StreamBadge stream={alternateStream} size="sm" />
-          </p>
-        )}
+        <div className="space-y-2 p-4 text-sm">
+          <p>{stream.description}</p>
+          {alternateStream && (
+            <p className="flex items-center gap-2">
+              <span className="font-semibold">Or:</span> <StreamBadge stream={alternateStream} />
+            </p>
+          )}
+        </div>
       </div>
 
       {reminder && (
-        <div className="flex gap-3 rounded-2xl bg-blue-50 p-4 text-sm text-blue-900 ring-1 ring-blue-200">
-          <span aria-hidden className="text-xl">💧</span>
-          <p className="font-medium">{reminder}</p>
+        <div className="border-2 border-bin bg-white p-4">
+          <p className="font-display text-sm font-bold uppercase tracking-wider text-bin">Blue bin rule</p>
+          <p className="mt-1 font-medium">{reminder}</p>
         </div>
       )}
 
-      <div className="card p-5">
-        <h3 className="font-bold">How to sort it</h3>
-        <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
-          {steps.map((step) => (
-            <li key={step}>{step}</li>
+      <div className="panel p-4">
+        <h3 className="text-xl">How to sort it</h3>
+        <ol className="mt-3 space-y-2">
+          {steps.map((step, i) => (
+            <li key={step} className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center bg-ink font-display text-sm font-bold text-white">{i + 1}</span>
+              <span className="pt-0.5">{step}</span>
+            </li>
           ))}
         </ol>
-        {item.tip && <p className="mt-3 rounded-lg bg-eco-50 p-3 text-sm text-eco-900">💡 {item.tip}</p>}
+        {item.tip && <p className="mt-4 border-l-4 border-kraft pl-3 text-sm">{item.tip}</p>}
       </div>
 
       {toShadyGrove && (
-        <div className="card p-5 text-sm">
-          <h3 className="font-bold">📍 {SHADY_GROVE.name}</h3>
-          <p className="mt-1 text-slate-600">{SHADY_GROVE.address}</p>
+        <div className="panel p-4">
+          <h3 className="text-xl">{SHADY_GROVE.name}</h3>
+          <p className="mt-1">{SHADY_GROVE.address}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <a className="btn-secondary" href={SHADY_GROVE.mapsUrl} target="_blank" rel="noreferrer">Directions</a>
-            <a className="btn-secondary" href={SHADY_GROVE.infoUrl} target="_blank" rel="noreferrer">Hours & accepted items</a>
+            <a className="btn-secondary" href={SHADY_GROVE.infoUrl} target="_blank" rel="noreferrer">Hours and what they take</a>
           </div>
         </div>
       )}

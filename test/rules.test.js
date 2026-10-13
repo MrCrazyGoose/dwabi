@@ -28,7 +28,7 @@ test('clean pizza box goes to paper; light grease splits; heavy grease goes to t
   const light = decide('pizza-box', { level: 'light' });
   assert.equal(light.split, true);
   assert.equal(light.stream.id, 'PAPER');
-  assert.match(light.steps[0], /TRASH/);
+  assert.match(light.steps[0], /trash/);
   const heavy = decide('pizza-box', { level: 'heavy' });
   assert.equal(heavy.stream.id, 'TRASH');
   assert.equal(heavy.contaminated, true);

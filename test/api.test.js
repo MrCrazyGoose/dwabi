@@ -41,23 +41,23 @@ function apiSuite(name, makeStore) {
     }
 
     const suffix = Math.random().toString(36).slice(2, 7);
-    const register = (username, schoolId = 'blair-hs', extra = {}) =>
+    const register = (username, extra = {}) =>
       call('/auth/register', {
         method: 'POST',
-        body: { username: `${username}_${suffix}`, password: 'recycle-123', displayName: username, schoolId, grade: 10, ...extra },
+        body: { username: `${username}_${suffix}`, password: 'recycle-123', displayName: username, ...extra },
       });
 
     test('registration validates input', async () => {
-      assert.equal((await call('/auth/register', { method: 'POST', body: { username: 'a!', password: 'recycle-123', displayName: 'A', schoolId: 'blair-hs' } })).status, 400);
-      assert.equal((await register('valid1', 'not-a-school')).status, 400);
-      assert.equal((await register('valid2', 'blair-hs', { password: 'short' })).status, 400);
-      assert.equal((await register('valid3', 'blair-hs', { grade: 3 })).status, 400);
+      assert.equal((await call('/auth/register', { method: 'POST', body: { username: 'a!', password: 'recycle-123', displayName: 'Al' } })).status, 400);
+      assert.equal((await register('valid2', { password: 'short' })).status, 400);
+      assert.equal((await register('valid3', { displayName: 'x' })).status, 400);
     });
 
     test('register, duplicate username, login and /me', async () => {
       const r = await register('alex');
       assert.equal(r.status, 201);
-      assert.equal(r.body.user.school.name, 'Montgomery Blair High School');
+      assert.equal(r.body.user.displayName, 'alex');
+      assert.equal(r.body.user.school, undefined);
       assert.equal(r.body.user.passwordHash, undefined);
       assert.equal((await register('alex')).status, 409);
 
@@ -74,14 +74,14 @@ function apiSuite(name, makeStore) {
     });
 
     test('scans award points, contamination bonus only when eligible, daily cap', async () => {
-      const { body } = await register('sam', 'bcc-hs');
+      const { body } = await register('sam');
       const token = body.token;
 
       let r = await call('/scans', { method: 'POST', token, body: { itemId: 'pizza-box', contaminationFound: true, level: 'light', source: 'camera' } });
       assert.equal(r.status, 201);
       assert.equal(r.body.points, POINTS.SCAN + POINTS.CONTAMINATION_BONUS);
 
-      // Newspaper has no contamination check or alert — no bonus.
+      // Newspaper has no contamination check or alert, so no bonus.
       r = await call('/scans', { method: 'POST', token, body: { itemId: 'newspaper', contaminationFound: true } });
       assert.equal(r.body.points, POINTS.SCAN);
 
@@ -100,7 +100,7 @@ function apiSuite(name, makeStore) {
     });
 
     test('weekly quiz: answers hidden, scored on server, one attempt per week', async () => {
-      const { body } = await register('quinn', 'rm-hs');
+      const { body } = await register('quinn');
       const token = body.token;
       const q = await call('/quiz/current', { token });
       assert.equal(q.status, 200);
@@ -125,7 +125,7 @@ function apiSuite(name, makeStore) {
     });
 
     test('batches require loose recyclables, award bonus and are limited per day', async () => {
-      const { body } = await register('bea', 'rm-hs');
+      const { body } = await register('bea');
       const token = body.token;
       const counts = { blueBin: 4, paper: 3, dropoff: 0, trash: 1 };
 
@@ -149,20 +149,19 @@ function apiSuite(name, makeStore) {
       assert.equal(r.status, 429);
     });
 
-    test('leaderboard ranks students, schools per student, and clusters', async () => {
+    test('leaderboard ranks individuals by points', async () => {
       const lb = await call('/leaderboard');
       assert.equal(lb.status, 200);
-      const names = lb.body.students.map((s) => s.displayName);
+      const names = lb.body.players.map((s) => s.displayName);
       assert.ok(names.includes('sam') && names.includes('quinn') && names.includes('bea'));
-      for (let i = 1; i < lb.body.students.length; i++) {
-        assert.ok(lb.body.students[i - 1].points >= lb.body.students[i].points);
-      }
-      const rm = lb.body.schools.find((s) => s.id === 'rm-hs');
-      assert.ok(rm.students >= 2);
-      assert.equal(rm.perStudent, Math.round(rm.points / rm.students));
-      assert.ok(lb.body.clusters.some((c) => c.name === 'Richard Montgomery'));
-      assert.equal(lb.body.competition.prizes.length > 0, true);
-      // Students with zero points (alex) are not listed.
+      lb.body.players.forEach((p, i) => {
+        assert.equal(p.rank, i + 1);
+        if (i > 0) assert.ok(lb.body.players[i - 1].points >= p.points);
+        assert.equal(p.school, undefined);
+      });
+      assert.equal(lb.body.schools, undefined);
+      assert.ok(lb.body.competition.prizes.length > 0);
+      // Players with zero points (alex) are not listed.
       assert.ok(!names.includes('alex'));
     });
 

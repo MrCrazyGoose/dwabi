@@ -1,5 +1,5 @@
 // TensorFlow.js + MobileNet, loaded lazily so the rest of the site stays
-// fast. All inference runs locally in the browser — images never leave the
+// fast. All inference runs locally in the browser, so images never leave the
 // device.
 
 let modelPromise = null;

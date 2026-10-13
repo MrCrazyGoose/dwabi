@@ -9,12 +9,12 @@ export const QUESTIONS = [
     question: 'Where should a plastic grocery bag go in Montgomery County?',
     choices: ['Blue bin', 'Mixed-paper cart', 'Grocery store drop-off or trash', 'Yard trim'],
     answer: 2,
-    explanation: 'Plastic bags jam sorting machines. The county does not accept them curbside — use a store drop-off or the trash.',
+    explanation: 'Plastic bags jam sorting machines. The county does not take them curbside. Use a store drop-off or the trash.',
   },
   {
     id: 'q-bagged-recyclables',
     question: 'Is it OK to put your recyclables into the blue bin inside a plastic bag?',
-    choices: ['Yes, it keeps things tidy', 'No — recyclables must be loose', 'Only if the bag is clear', 'Only on windy days'],
+    choices: ['Yes, it keeps things tidy', 'No, recyclables must be loose', 'Only if the bag is clear', 'Only on windy days'],
     answer: 1,
     explanation: 'Bagged recyclables are often treated as trash at the sorting facility. Always empty them loose.',
   },
@@ -30,7 +30,7 @@ export const QUESTIONS = [
     question: 'What three things must a container be before it goes in the blue bin?',
     choices: ['Crushed, labeled, capped', 'Empty, rinsed, clean', 'Bagged, sorted, dry', 'Flattened, taped, stacked'],
     answer: 1,
-    explanation: 'Empty, rinsed and clean — food residue contaminates the load.',
+    explanation: 'Empty, rinsed and clean. Food residue contaminates the load.',
   },
   {
     id: 'q-car-battery',
@@ -70,7 +70,7 @@ export const QUESTIONS = [
       'Composting food scraps',
     ],
     answer: 1,
-    explanation: 'Wish-recycling drives up contamination. When in doubt, check EcoSort — or throw it out.',
+    explanation: 'Wish-recycling drives up contamination. If you are not sure, look it up first. If you still are not sure, it goes in the trash.',
   },
   {
     id: 'q-foam',
@@ -138,7 +138,7 @@ export const QUESTIONS = [
     question: 'Compact fluorescent (CFL) bulbs contain…',
     choices: ['Lead', 'Mercury', 'Helium', 'Nothing hazardous'],
     answer: 1,
-    explanation: 'CFLs contain a small amount of mercury — take them to household hazardous waste.',
+    explanation: 'CFLs contain a small amount of mercury, so they go to household hazardous waste.',
   },
   {
     id: 'q-contamination',

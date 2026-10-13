@@ -2,24 +2,26 @@
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}', './shared/**/*.js'],
   theme: {
+    // Bin-label signage: square corners everywhere.
+    borderRadius: { none: '0', DEFAULT: '0', full: '9999px' },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['Barlow', 'Arial', 'sans-serif'],
+        display: ['"Barlow Condensed"', '"Arial Narrow"', 'Arial', 'sans-serif'],
       },
       colors: {
-        eco: {
-          50: '#effaf3',
-          100: '#d8f3e1',
-          200: '#b3e5c6',
-          300: '#80d1a4',
-          400: '#4bb67e',
-          500: '#289a62',
-          600: '#1b7c4e',
-          700: '#166341',
-          800: '#144f36',
-          900: '#12412e',
-        },
+        paper: '#F3F0E8', // page background, like unbleached card stock
+        ink: '#141414',
+        bin: '#1C4FA0', // county blue bin
+        kraft: '#C9A46B', // cardboard
+        hazard: '#F5C400',
+        stop: '#C62828',
+        leaf: '#2E6B34',
+        plum: '#5B3E8E',
+        rust: '#B5541B',
+        ash: '#5E5E5A',
       },
+      borderWidth: { 3: '3px' },
     },
   },
   plugins: [],
