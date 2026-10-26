@@ -1,7 +1,7 @@
-# MoCoBin
+# MocoBin
 
-MoCoBin is a web app that cuts recycling contamination in **Montgomery County, Maryland (Congressional District 8)**.
-Young people scan an item with their phone camera or a photo, and MoCoBin:
+MocoBin is a web app that cuts recycling contamination in **Montgomery County, Maryland (Congressional District 8)**.
+Young people scan an item with their phone camera or a photo, and MocoBin:
 
 1. **identifies the item** and **checks it for contamination** (grease on cardboard and pizza boxes, food left in
    containers, banned items such as plastic bags) with an AI vision model,
@@ -25,7 +25,7 @@ Players earn points on a seasonal individual leaderboard.
 | Montgomery County rules engine (~45 items, 11 disposal streams, Shady Grove routing) | `shared/rules.js` |
 | Searchable sorting guide | `src/pages/Guide.jsx` |
 | Accounts with a display name only (no email, school or age) | `src/pages/Auth.jsx` |
-| Points for scans, contamination catches, weekly quizzes and household batch logs | `shared/points.js`, `server/app.js` |
+| Points for scans, contamination catches, weekly quizzes and bin night, plus levels, badges and streaks | `shared/points.js`, `server/app.js` |
 | Individual leaderboard with prizes and a competition window | `src/pages/Leaderboard.jsx`, `server/competition.js` |
 
 ## Tech stack
@@ -36,18 +36,21 @@ Players earn points on a seasonal individual leaderboard.
 - **Backend:** Node.js and Express. Passwords are hashed with scrypt and logins use HMAC-signed tokens (no extra crypto dependencies).
 - **Database:** PostgreSQL when `DATABASE_URL` is set. Otherwise a JSON file store is used, so there is zero setup for local development.
 
-MoCoBin is an independent youth project and is not run by Montgomery County Government.
+MocoBin is an independent youth project and is not run by Montgomery County Government.
 
 ## Design
 
-The look is based on recycling bin labels: flat solid colors (bin blue, kraft, black, hazard yellow), square corners,
-and no gradients, shadows or emoji. Two things make it MoCoBin's own:
+Built for middle and high school students: one column, big buttons, and a bottom tab bar on phones
+(Scan, Quiz, Bin night, Ranks, Me).
 
-- **Viewfinder corners.** The logo is a blue bin inside camera viewfinder corners, and the same corners (the `.frame`
-  class) mark anything in the scanner's sights: the camera guide, the main scan button and every result.
-- **Stencil lettering.** The wordmark and headlines use Big Shoulders Stencil Display, like the paint on bins and
-  trucks. Everything else uses Barlow and Barlow Condensed. The colors are defined in `tailwind.config.js` and the
-shared styles in `src/index.css`. Copy stays plain and short. Write full sentences instead of using em dashes.
+- **Brand:** `public/logo.png` (wide logo, header and home page) and `public/favicon.png` (tab and home-screen icon).
+  Greens come from the logo; the darker `brand-700` green is used for text and buttons so it stays readable.
+  Headings use Fredoka and body text uses Nunito. Colors live in `tailwind.config.js`, shared styles in `src/index.css`.
+- **Bin colors** (blue bin, kraft paper, black trash, red Shady Grove) are kept only where they tell you which bin.
+- **Progress** (`shared/progress.js`): six levels from Rookie Sorter to Bin Boss, a daily scan streak, and ten badges
+  such as Bag Buster and Grease Detective, all computed from logged points.
+
+The app name lives in `shared/brand.js`.
 
 ## Getting started
 
@@ -128,7 +131,7 @@ Both checks are heuristics. People can correct the item or its condition in one 
 
 ## Anti-farming and youth safety
 
-- Daily caps: 60 scan points and 2 batch logs per rolling 24 hours. One quiz attempt per week. Requests are serialized
+- Daily caps: 60 scan points per rolling 24 hours. One quiz attempt per week. Requests are serialized
   per user so parallel requests cannot get around the caps.
 - Quiz answers stay on the server and are scored there.
 - No email, phone number or full name is collected. Players choose a display name, and the app suggests a first name

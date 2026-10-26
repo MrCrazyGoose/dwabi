@@ -8,6 +8,7 @@ import { getItem, searchItems, decide } from '../shared/rules.js';
 import { POINTS, LIMITS, BATCH_CHECKLIST, BATCH_FIELDS, streakBonus } from '../shared/points.js';
 import { PICKUP_DAYS, addDays, applySlide, dateKey, eastern, formatDate, inCheckWindow, nextPickup } from '../shared/pickup.js';
 import { BRAND_NAME } from '../shared/brand.js';
+import { dayStreak, earnedBadges, levelFor } from '../shared/progress.js';
 import { VisionError } from './vision.js';
 import { pickupCalendar } from './ics.js';
 
@@ -213,6 +214,7 @@ export function createApp({ store, secret, env = process.env, staticDir, vision 
       const week = weekKey();
       const quizThisWeek = events.find((e) => e.type === 'quiz' && e.meta?.week === week);
 
+      const dailyStreak = dayStreak(events, now());
       const pickup = nextPickup(req.user.pickupDay, now());
       const lastReady = events.find((e) => e.type === 'bincheck' && e.meta?.verdict === 'ready');
       // The streak is alive if the last counted check was for this pickup or the one before it.
@@ -237,7 +239,10 @@ export function createApp({ store, secret, env = process.env, staticDir, vision 
           quizTakenThisWeek: Boolean(quizThisWeek),
           binStreak: streak,
           binCheckedThisPickup: Boolean(lastReady && pickup && lastReady.meta.pickupKey === pickup.key),
+          dayStreak: dailyStreak,
         },
+        level: levelFor(competitionPoints),
+        badges: earnedBadges(events, { dayStreak: dailyStreak }),
         pickup: pickupInfo(pickup),
         recent: events.slice(0, 15),
       });

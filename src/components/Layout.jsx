@@ -1,117 +1,78 @@
-import { useState } from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
-import { COUNTY_INFO_URL } from '../../shared/rules.js';
-import { BRAND_DISCLAIMER } from '../../shared/brand.js';
-import { LogoMark, Wordmark } from './Logo.jsx';
 import { useConfig } from '../lib/config.js';
+import { BRAND_DISCLAIMER } from '../../shared/brand.js';
+import { COUNTY_INFO_URL } from '../../shared/rules.js';
 
-const NAV = [
+const TABS = [
   { to: '/scan', label: 'Scan' },
-  { to: '/bin-night', label: 'Bin night' },
-  { to: '/guide', label: 'Guide' },
-  { to: '/leaderboard', label: 'Leaderboard' },
   { to: '/quiz', label: 'Quiz' },
-  { to: '/log', label: 'Log a batch' },
+  { to: '/bin-night', label: 'Bin night' },
+  { to: '/leaderboard', label: 'Ranks' },
+  { to: '/me', label: 'Me' },
 ];
 
-function navClass({ isActive }) {
-  return `border-b-4 px-1 py-1 font-display text-lg font-bold uppercase tracking-wide ${
-    isActive ? 'border-bin text-ink' : 'border-transparent text-ink/70 hover:text-ink'
-  }`;
-}
-
-function mobileClass({ isActive }) {
-  return `block border-l-4 px-3 py-2 font-display text-xl font-bold uppercase ${
-    isActive ? 'border-bin bg-paper' : 'border-transparent'
-  }`;
-}
-
 export default function Layout() {
-  const { user, stats, logout } = useAuth();
-  const [open, setOpen] = useState(false);
+  const { user, stats } = useAuth();
   const config = useConfig();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-30 border-b-2 border-ink bg-white">
-        <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-2.5">
-          <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)} aria-label="MoCoBin home">
-            <LogoMark />
-            <Wordmark />
+    <div className="flex min-h-screen flex-col pb-20 md:pb-0">
+      <header className="sticky top-0 z-30 border-b-2 border-brand-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-2.5">
+          <Link to="/" aria-label="MocoBin home" className="shrink-0">
+            <img src="/logo.png" alt="MocoBin" className="h-9 w-auto sm:h-10" />
           </Link>
-          <nav className="hidden items-center gap-5 lg:flex">
-            {NAV.map((n) => (
-              <NavLink key={n.to} to={n.to} className={navClass}>{n.label}</NavLink>
+          <nav className="hidden items-center gap-1 md:flex">
+            {TABS.map((t) => (
+              <NavLink
+                key={t.to}
+                to={t.to}
+                className={({ isActive }) =>
+                  `rounded-full px-3.5 py-1.5 font-heading font-semibold ${isActive ? 'bg-brand-100 text-brand-800' : 'text-ink/70 hover:text-ink'}`
+                }
+              >
+                {t.label}
+              </NavLink>
             ))}
           </nav>
-          <div className="ml-auto hidden items-center gap-3 lg:flex">
+          <div className="ml-auto">
             {user ? (
-              <>
-                <NavLink to="/dashboard" className={navClass}>
-                  {user.displayName}
-                  {stats && <span className="ml-2 bg-ink px-1.5 py-0.5 text-sm text-white">{stats.competitionPoints}</span>}
-                </NavLink>
-                <button onClick={logout} className="btn-secondary !px-3 !py-1 !text-base">Log out</button>
-              </>
+              <Link to="/me" className="pill bg-brand-400 text-ink">{stats ? `${stats.competitionPoints} pts` : user.displayName}</Link>
             ) : (
-              <>
-                <Link to="/login" className="btn-secondary !px-3 !py-1 !text-base">Log in</Link>
-                <Link to="/register" className="btn-primary !px-3 !py-1 !text-base">Sign up</Link>
-              </>
+              <Link to="/register" className="btn-primary !px-4 !py-1.5 !text-base">Join</Link>
             )}
           </div>
-          <button
-            className="ml-auto border-2 border-ink px-3 py-1 font-display font-bold uppercase lg:hidden"
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-          >
-            {open ? 'Close' : 'Menu'}
-          </button>
         </div>
-        {open && (
-          <nav className="border-t-2 border-ink py-2 lg:hidden" onClick={() => setOpen(false)}>
-            {NAV.map((n) => (
-              <NavLink key={n.to} to={n.to} className={mobileClass}>{n.label}</NavLink>
-            ))}
-            {user ? (
-              <>
-                <NavLink to="/dashboard" className={mobileClass}>
-                  {user.displayName} {stats && `(${stats.competitionPoints} pts)`}
-                </NavLink>
-                <button onClick={logout} className="block w-full border-l-4 border-transparent px-3 py-2 text-left font-display text-xl font-bold uppercase">
-                  Log out
-                </button>
-              </>
-            ) : (
-              <>
-                <NavLink to="/login" className={mobileClass}>Log in</NavLink>
-                <NavLink to="/register" className={mobileClass}>Sign up</NavLink>
-              </>
-            )}
-          </nav>
-        )}
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:py-10">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:py-8">
         <Outlet />
       </main>
 
-      <footer className="border-t-2 border-ink bg-white">
-        <div className="mx-auto max-w-6xl space-y-1 px-4 py-5 text-sm text-ash">
-          <p className="font-semibold text-ink">{BRAND_DISCLAIMER}</p>
-          <p>
-          Sorting rules follow Montgomery County DEP guidance. Check anything unusual at{' '}
-          <a className="font-semibold text-ink underline" href={COUNTY_INFO_URL} target="_blank" rel="noreferrer">
-            montgomerycountymd.gov/sws
-          </a>
-          .{' '}
-          {config?.photoChecks
-            ? 'Photos are sent to an AI service to be checked and are not saved by this site.'
-            : 'Photos you scan stay on your phone.'}
-          </p>
-        </div>
+      <footer className="px-4 pb-6 text-center text-xs text-ash">
+        <p className="font-semibold">{BRAND_DISCLAIMER}</p>
+        <p className="mt-1">
+          Rules from{' '}
+          <a className="underline" href={COUNTY_INFO_URL} target="_blank" rel="noreferrer">montgomerycountymd.gov/sws</a>.{' '}
+          {config?.photoChecks ? 'Photos are checked by an AI service and are not saved.' : 'Photos stay on your phone.'}
+        </p>
       </footer>
+
+      {/* Phone tab bar */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t-2 border-brand-100 bg-white md:hidden">
+        {TABS.map((t) => (
+          <NavLink
+            key={t.to}
+            to={t.to}
+            className={({ isActive }) =>
+              `py-3 text-center font-heading text-sm font-semibold ${isActive ? 'bg-brand-100 text-brand-800' : 'text-ink/60'}`
+            }
+          >
+            {t.label}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

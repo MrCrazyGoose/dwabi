@@ -4,6 +4,7 @@ import { decide, getItem } from '../../shared/rules.js';
 import { QUICK_PICKS, matchPredictions, suggestItems } from '../../shared/vision/classMap.js';
 import { analyzeImage } from '../../shared/vision/contamination.js';
 import { POINTS } from '../../shared/points.js';
+import { levelFor } from '../../shared/progress.js';
 import { classify, cropToGuide, loadModel, loadImageFile, toCanvas, toJpegDataUrl } from '../lib/vision.js';
 import { useConfig } from '../lib/config.js';
 import { api } from '../lib/api.js';
@@ -94,7 +95,7 @@ function drawOverlay(canvas, capture, analysis) {
 }
 
 export default function Scan() {
-  const { user, refresh } = useAuth();
+  const { user, stats, refresh } = useAuth();
   const [mode, setMode] = useState('camera');
   const [capture, setCapture] = useState(null); // { canvas, source }
   const [modelState, setModelState] = useState('idle');
@@ -242,8 +243,10 @@ export default function Scan() {
         method: 'POST',
         body: { itemId, contaminationFound, level, source: capture?.source || 'search' },
       });
+      const before = levelFor(stats?.competitionPoints || 0).number;
       setLogState({ points: res.points, capped: res.capped });
-      refresh();
+      const me = await refresh();
+      if (me?.level && me.level.number > before) setLogState((s) => ({ ...s, levelUp: me.level.name }));
     } catch (err) {
       setLogState({ error: err.message });
     }
@@ -262,235 +265,150 @@ export default function Scan() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-5xl">Scan an item</h1>
-        <p className="mt-2 max-w-2xl text-lg">
-          Point your camera at it or upload a photo. You get the bin it goes in under Montgomery County rules, plus a
-          check for grease and leftover food.
-        </p>
+    <div className="mx-auto max-w-xl space-y-5">
+      <h1 className="text-4xl">What are you tossing?</h1>
+
+      {!capture && (
+        <div className="flex rounded-full bg-brand-100 p-1" role="tablist">
+          {[
+            ['camera', 'Camera'],
+            ['upload', 'Upload photo'],
+          ].map(([m, label]) => (
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`flex-1 rounded-full py-2 font-heading font-semibold ${mode === m ? 'bg-white text-brand-800' : 'text-brand-800/70'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-3xl bg-ink">
+        <div className="relative aspect-square sm:aspect-[4/3]">
+          {capture ? (
+            <canvas ref={overlayRef} className="h-full w-full object-contain" />
+          ) : mode === 'camera' ? (
+            <>
+              <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
+              {!cameraReady && !cameraError && (
+                <p className="absolute inset-0 flex items-center justify-center text-white/70">Starting camera...</p>
+              )}
+              {cameraError && <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-white">{cameraError}</p>}
+              <div className="pointer-events-none absolute left-1/2 top-1/2 aspect-square h-[70%] -translate-x-1/2 -translate-y-1/2 rounded-3xl border-4 border-dashed border-white/70" />
+              {cameraReady && (
+                <span className="pill absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap bg-white/90 text-ink">
+                  {liveLabel ? `Looks like: ${liveLabel}` : 'Fit the item in the box'}
+                </span>
+              )}
+            </>
+          ) : (
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex h-full w-full items-center justify-center font-heading text-2xl font-semibold text-white/80 hover:text-white"
+            >
+              Tap to choose a photo
+            </button>
+          )}
+          {busy && (
+            <div className="absolute inset-0 flex items-center justify-center bg-ink/60 font-heading text-2xl font-semibold text-white">
+              Checking...
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="space-y-4">
-          <div className="flex" role="tablist">
-            {[
-              ['camera', 'Camera'],
-              ['upload', 'Upload a photo'],
-            ].map(([m, label]) => (
-              <button
-                key={m}
-                role="tab"
-                aria-selected={mode === m}
-                onClick={() => {
-                  setMode(m);
-                  reset();
-                }}
-                className={`-ml-0.5 border-2 border-ink px-4 py-1.5 font-display text-lg font-bold uppercase first:ml-0 ${
-                  mode === m ? 'bg-ink text-white' : 'bg-white'
-                }`}
-              >
-                {label}
+      <div className="flex justify-center">
+        {capture ? (
+          <button className="btn-secondary" onClick={reset}>Scan something else</button>
+        ) : mode === 'camera' ? (
+          <button className="btn-primary btn-big" onClick={takePhoto} disabled={!cameraReady || busy}>Scan it</button>
+        ) : (
+          <button className="btn-primary btn-big" onClick={() => fileRef.current?.click()} disabled={busy}>Choose photo</button>
+        )}
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+      </div>
+      {!useAi && modelState === 'error' && (
+        <p className="text-center text-sm text-ash">Photo recognition is unavailable right now. Search for the item instead.</p>
+      )}
+
+      {aiError && <p className="text-center font-semibold text-stop">{aiError}</p>}
+      {ai && PHOTO_HINTS[ai.photoQuality] && !item && <p className="text-center font-semibold text-stop">{PHOTO_HINTS[ai.photoQuality]}</p>}
+
+      {capture && !busy && !match && !item && (
+        <div className="card p-5">
+          <p className="font-heading text-xl font-semibold">Hmm, which one is it?</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(ai ? [...new Set([ai.itemId, ...QUICK_PICKS].filter(Boolean))].slice(0, 8) : suggestItems(predictions)).map((id) => (
+              <button key={id} type="button" className="btn-secondary !px-4 !py-1.5 !text-base" onClick={() => chooseItem(getItem(id))}>
+                {getItem(id).name.replace(/ \(.*\)$/, '')}
               </button>
             ))}
           </div>
+        </div>
+      )}
 
-          <div className="panel">
-            <div className="relative aspect-[4/3] bg-ink">
-              {capture ? (
-                <canvas ref={overlayRef} className="h-full w-full object-contain" />
-              ) : mode === 'camera' ? (
-                <>
-                  <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
-                  {!cameraReady && !cameraError && (
-                    <p className="absolute inset-0 flex items-center justify-center text-white/70">Starting camera...</p>
-                  )}
-                  {cameraError && (
-                    <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-white">{cameraError}</p>
-                  )}
-                  <div
-                    className="frame frame-light pointer-events-none !absolute left-1/2 top-1/2 aspect-square h-[70%] -translate-x-1/2 -translate-y-1/2"
-                    style={{ '--frame-gap': '0px', '--frame-len': '36px', '--frame-w': '4px' }}
-                  />
-                  {cameraReady && (
-                    <span className="absolute bottom-0 left-0 bg-ink px-2 py-1 font-display text-sm font-bold uppercase text-white">
-                      {liveLabel ? `Looks like: ${liveLabel}` : 'Fill the box with the item'}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="flex h-full w-full items-center justify-center font-display text-2xl font-bold uppercase text-white/80 hover:text-white"
-                >
-                  Choose a photo
+      {item?.contaminationCheck && (needsManualLevel || override) && (
+        <div className="card p-5">
+          <p className="font-heading text-xl font-semibold">
+            {item.contaminationCheck === 'grease' ? 'How does it look?' : 'Is it empty and rinsed?'}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {LEVEL_OPTIONS[item.contaminationCheck].map((o) => (
+              <button
+                key={o.level}
+                onClick={() => setOverride(o.level)}
+                className={`${level === o.level ? 'btn-primary' : 'btn-secondary'} !px-4 !py-1.5 !text-base`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {aiForItem && item?.contaminationCheck && !override && aiForItem.findings.length > 0 && (
+        <div className="card p-5">
+          <p className="font-heading text-xl font-semibold">We spotted</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {aiForItem.findings.map((f) => <li key={f}>{f}</li>)}
+          </ul>
+        </div>
+      )}
+
+      <VerdictCard verdict={verdict} />
+
+      {verdict && (
+        <div className="text-center">
+          {user ? (
+            logState?.points !== undefined ? (
+              <div className="rounded-3xl bg-brand-400 p-5">
+                <p className="font-heading text-4xl font-bold">+{logState.points} points</p>
+                {logState.levelUp && <p className="mt-1 font-heading text-xl font-semibold">Level up! You're a {logState.levelUp}.</p>}
+                {logState.capped && <p className="mt-1 text-sm">You hit today's scan limit. Come back tomorrow.</p>}
+              </div>
+            ) : (
+              <>
+                <button className="btn-primary btn-big w-full" onClick={logScan} disabled={logState?.saving}>
+                  I sorted it right! +{potentialPoints}
                 </button>
-              )}
-              {busy && (
-                <div className="absolute inset-0 flex items-center justify-center bg-ink/60 font-display text-2xl font-bold uppercase text-white">
-                  Checking...
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-3 border-t-2 border-ink p-3">
-              {capture ? (
-                <button className="btn-secondary" onClick={reset}>Scan another</button>
-              ) : mode === 'camera' ? (
-                <button className="btn-primary" onClick={takePhoto} disabled={!cameraReady || busy}>Take photo</button>
-              ) : (
-                <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={busy}>Choose photo</button>
-              )}
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
-              <span className="ml-auto text-sm text-ash">
-                {useAi && 'Photos are checked by AI, not stored'}
-                {!useAi && modelState === 'loading' && 'Loading the recognition model...'}
-                {!useAi && modelState === 'ready' && 'Recognition ready'}
-                {!useAi && modelState === 'error' && 'Recognition unavailable. Pick the item yourself.'}
-              </span>
-            </div>
-          </div>
-
-          {aiForItem && item?.contaminationCheck && !override && (
-            <div className="panel p-4">
-              <h3 className="text-xl">Contamination check</h3>
-              {aiForItem.findings.length === 0 ? (
-                <p className="mt-1">
-                  {item.contaminationCheck === 'grease' ? 'No grease or food stains spotted.' : 'Nothing left inside that we can see. Rinse it anyway.'}
-                </p>
-              ) : (
-                <ul className="mt-2 space-y-1">
-                  {aiForItem.findings.map((f) => (
-                    <li key={f} className="flex gap-2">
-                      <span className="mt-2 h-2 w-2 shrink-0 bg-stop" />
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                {contaminationFound && <p className="mt-2 text-sm text-ash">Includes {POINTS.CONTAMINATION_BONUS} bonus points for catching a problem.</p>}
+              </>
+            )
+          ) : (
+            <Link to="/register" className="btn-primary btn-big w-full">Join to earn +{potentialPoints} points</Link>
           )}
+          {logState?.error && <p className="mt-2 text-sm text-stop">{logState.error}</p>}
+        </div>
+      )}
 
-          {capture && analysis && !override && analysis.level !== 'unknown' && (
-            <div className="panel p-4">
-              <h3 className="text-xl">Contamination check</h3>
-              {analysis.kind === 'grease' ? (
-                <p className="mt-1">
-                  {analysis.flaggedCells === 0
-                    ? `No grease spotted across ${analysis.materialCells} sections.`
-                    : `${analysis.flaggedCells} of ${analysis.materialCells} sections look greasy or stained. Red squares go in the trash.`}
-                </p>
-              ) : (
-                <p className="mt-1">
-                  {analysis.level === 'light'
-                    ? 'Some spots look like leftover food or liquid. They are marked in red.'
-                    : 'Nothing obvious left inside. Rinse it anyway.'}
-                </p>
-              )}
-            </div>
-          )}
-
-          {predictions.length > 0 && (
-            <details className="panel p-4">
-              <summary className="cursor-pointer font-display font-bold uppercase tracking-wide">Model guesses</summary>
-              <ul className="mt-3 space-y-1.5 text-sm">
-                {predictions.map((p) => (
-                  <li key={p.className} className="flex items-center gap-3">
-                    <div className="h-2.5 flex-1 border border-ink bg-white">
-                      <div className="h-full bg-ink" style={{ width: `${Math.round(p.probability * 100)}%` }} />
-                    </div>
-                    <span className="w-40 truncate">{p.className.split(',')[0]}</span>
-                    <span className="w-10 text-right tabular-nums">{Math.round(p.probability * 100)}%</span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </section>
-
-        <section className="space-y-4">
-          <div className="panel p-4">
-            <label className="label">{item ? 'Wrong item? Search for it' : 'Or search for it'}</label>
-            <ItemSearch onSelect={chooseItem} />
-            {match && item && match.itemId === item.id && (
-              <p className="mt-2 text-sm text-ash">
-                Recognized as "{match.label.split(',')[0]}" ({Math.round(match.probability * 100)}% sure).
-              </p>
-            )}
-            {aiForItem && <p className="mt-2 text-sm text-ash">Recognized as {aiForItem.whatISee}.</p>}
-            {ai && PHOTO_HINTS[ai.photoQuality] && !item && <p className="mt-2 font-medium text-stop">{PHOTO_HINTS[ai.photoQuality]}</p>}
-            {aiError && <p className="mt-2 font-medium text-stop">{aiError}</p>}
-            {capture && !busy && !match && !item && (
-              <div className="mt-4">
-                <p className="font-display text-lg font-bold uppercase">Not sure. Which one is it?</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(ai ? [...new Set([ai.itemId, ...QUICK_PICKS].filter(Boolean))].slice(0, 8) : suggestItems(predictions)).map((id) => (
-                    <button key={id} type="button" className="btn-secondary !px-3 !py-1 !text-base" onClick={() => chooseItem(getItem(id))}>
-                      {getItem(id).name.replace(/ \(.*\)$/, '')}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 text-sm text-ash">Not here? Search above. The grease check still runs on your photo.</p>
-              </div>
-            )}
-          </div>
-
-          {item?.contaminationCheck && (needsManualLevel || override) && (
-            <div className="panel p-4">
-              <p className="label">{item.contaminationCheck === 'grease' ? 'How does it look?' : 'Is it empty and rinsed?'}</p>
-              <div className="flex flex-wrap gap-2">
-                {LEVEL_OPTIONS[item.contaminationCheck].map((o) => (
-                  <button
-                    key={o.level}
-                    onClick={() => setOverride(o.level)}
-                    className={`${level === o.level ? 'btn-primary' : 'btn-secondary'} !px-3 !py-1 !text-base`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {item?.contaminationCheck && !needsManualLevel && !override && analysis && (
-            <button className="text-sm font-semibold underline" onClick={() => setOverride(analysis.level)}>
-              Check got it wrong? Set the condition yourself
-            </button>
-          )}
-
-          <VerdictCard verdict={verdict} />
-
-          {verdict && (
-            <div className="panel flex flex-wrap items-center gap-3 p-4">
-              {user ? (
-                logState?.points !== undefined ? (
-                  <p className="font-display text-2xl font-bold uppercase">
-                    +{logState.points} points
-                    {logState.capped && <span className="ml-2 font-sans text-sm normal-case text-ash">Daily scan limit reached.</span>}
-                  </p>
-                ) : (
-                  <>
-                    <button className="btn-primary" onClick={logScan} disabled={logState?.saving}>
-                      Sorted it. Log +{potentialPoints}
-                    </button>
-                    {contaminationFound && (
-                      <span className="text-sm text-ash">Includes {POINTS.CONTAMINATION_BONUS} for catching a problem item.</span>
-                    )}
-                  </>
-                )
-              ) : (
-                <p>
-                  <Link to="/register" className="font-semibold underline">Sign up</Link> to earn points for this.
-                </p>
-              )}
-              {logState?.error && <p className="w-full text-sm text-stop">{logState.error}</p>}
-            </div>
-          )}
-
-          {!verdict && (
-            <div className="border-2 border-dashed border-ink/40 p-8 text-center text-ash">
-              The bin it goes in will show up here.
-            </div>
-          )}
-        </section>
+      <div className="card p-5">
+        <label className="label">{item ? 'Wrong item? Search for it' : 'Or search for it'}</label>
+        <ItemSearch onSelect={chooseItem} />
+        <Link to="/guide" className="mt-3 inline-block text-sm font-semibold text-brand-700 underline">Browse every item</Link>
       </div>
     </div>
   );
