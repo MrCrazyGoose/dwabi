@@ -9,11 +9,6 @@ export function getCompetition(env = process.env) {
     start: new Date(`${start}T00:00:00-05:00`).toISOString(),
     // Inclusive of the whole final day (Eastern time).
     end: new Date(`${end}T23:59:59-05:00`).toISOString(),
-    rules: [
-      'Open to young people who live in Montgomery County.',
-      'Only points earned between the start and end dates count.',
-      'Scanning and batch logs have daily limits, so showing up often beats one long session.',
-    ],
   };
 }
 

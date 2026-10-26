@@ -26,7 +26,7 @@ Players earn points on a seasonal individual leaderboard.
 | Searchable sorting guide | `src/pages/Guide.jsx` |
 | Accounts with a display name only (no email, school or age) | `src/pages/Auth.jsx` |
 | Points for scans, contamination catches, weekly quizzes and bin night, plus levels, badges and streaks | `shared/points.js`, `server/app.js` |
-| Individual leaderboard with prizes and a competition window | `src/pages/Leaderboard.jsx`, `server/competition.js` |
+| Individual leaderboard with a competition window | `src/pages/Leaderboard.jsx`, `server/competition.js` |
 
 ## Tech stack
 
@@ -121,4 +121,4 @@ streak (up to 25).
 ## Disclaimer
 
 Sorting guidance follows Montgomery County DEP's published recycling rules, but rules change. Always confirm edge cases
-at [montgomerycountymd.gov/sws](https://www.montgomerycountymd.gov/sws/). Prize descriptions are placeholders for organizers to finalize.
+at [montgomerycountymd.gov/sws](https://www.montgomerycountymd.gov/sws/).
