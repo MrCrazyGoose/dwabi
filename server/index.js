@@ -4,7 +4,6 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { createStore } from './store/index.js';
-import { createVision } from './vision.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -30,14 +29,7 @@ if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
 }
 
 const store = await createStore({ ...process.env, DATA_FILE: process.env.DATA_FILE || path.join(root, 'data', 'ecosort.json') });
-const vision = createVision({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  model: process.env.VISION_MODEL || undefined,
-  effort: process.env.VISION_EFFORT || 'low',
-});
-if (!vision) console.warn('ANTHROPIC_API_KEY is not set, so AI photo checks are off. Scanning falls back to the on-device model.');
-
-const app = createApp({ store, secret: await loadSecret(), staticDir: path.join(root, 'dist'), vision });
+const app = createApp({ store, secret: await loadSecret(), staticDir: path.join(root, 'dist') });
 const port = Number(process.env.PORT || 3001);
 app.listen(port, () => {
   console.log(`MoCoBin API listening on http://localhost:${port} (${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON file'} storage)`);

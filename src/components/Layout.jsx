@@ -1,6 +1,5 @@
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
-import { useConfig } from '../lib/config.js';
 import { BRAND_DISCLAIMER } from '../../shared/brand.js';
 import { COUNTY_INFO_URL } from '../../shared/rules.js';
 
@@ -14,7 +13,6 @@ const TABS = [
 
 export default function Layout() {
   const { user, stats } = useAuth();
-  const config = useConfig();
 
   return (
     <div className="flex min-h-screen flex-col pb-20 md:pb-0">
@@ -55,7 +53,7 @@ export default function Layout() {
         <p className="mt-1">
           Rules from{' '}
           <a className="underline" href={COUNTY_INFO_URL} target="_blank" rel="noreferrer">montgomerycountymd.gov/sws</a>.{' '}
-          {config?.photoChecks ? 'Photos are checked by an AI service and are not saved.' : 'Photos stay on your phone.'}
+          Photos stay on your phone.
         </p>
       </footer>
 

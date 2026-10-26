@@ -3,14 +3,14 @@
 MocoBin is a web app that cuts recycling contamination in **Montgomery County, Maryland (Congressional District 8)**.
 Young people scan an item with their phone camera or a photo, and MocoBin:
 
-1. **identifies the item** and **checks it for contamination** (grease on cardboard and pizza boxes, food left in
-   containers, banned items such as plastic bags) with an AI vision model,
+1. **identifies the item** with TensorFlow.js (MobileNet) running entirely in the browser, and **checks it for
+   contamination** (grease on cardboard and pizza boxes, food left in containers, banned items such as plastic bags),
 2. **tells them where it goes** under Montgomery County DEP rules: blue bin, mixed-paper cart, trash, store drop-off,
    or the **Shady Grove Processing Facility and Transfer Station**.
 
-**Bin night** is the weekly habit: the night before pickup, players photograph their open recycling bin and get a
-list of everything that has to come out, with what to do with each thing. A clean bin earns points, and checking
-every week builds a streak.
+**Bin night** is the weekly habit: the night before pickup, players run a five-point checklist on their recycling bin
+(no plastic bags, rinsed containers, no greasy paper, no batteries or electronics, lid closes). A finished checklist
+earns points, and checking every week builds a streak.
 
 Players earn points on a seasonal individual leaderboard.
 
@@ -18,9 +18,9 @@ Players earn points on a seasonal individual leaderboard.
 
 | Feature | Where |
 | --- | --- |
-| Item scanning and contamination check with Claude vision | `server/vision.js`, `src/pages/Scan.jsx` |
-| Bin night: pickup day, holiday slides, calendar reminders, bin photo check, streaks | `shared/pickup.js`, `server/ics.js`, `src/pages/BinNight.jsx` |
-| Offline fallback: MobileNet in the browser plus a pixel-based grease and residue check | `src/lib/vision.js`, `shared/vision/` |
+| Item scanning with MobileNet in the browser (photos never leave the device) | `src/pages/Scan.jsx`, `src/lib/vision.js` |
+| Grease and residue check with a per-section overlay | `shared/vision/contamination.js` |
+| Bin night: pickup day, holiday slides, calendar reminders, checklist, streaks | `shared/pickup.js`, `server/ics.js`, `src/pages/BinNight.jsx` |
 | Plastic-bag alert: *“Montgomery County does not accept plastic bags in curbside recycling!…”* | `shared/rules.js` |
 | Montgomery County rules engine (~45 items, 11 disposal streams, Shady Grove routing) | `shared/rules.js` |
 | Searchable sorting guide | `src/pages/Guide.jsx` |
@@ -31,8 +31,8 @@ Players earn points on a seasonal individual leaderboard.
 ## Tech stack
 
 - **Frontend:** React 18, React Router, Tailwind CSS 3, Vite
-- **Vision:** Claude (`claude-opus-5-5` via `@anthropic-ai/sdk`) with JSON-schema structured output, called from the server.
-  Without an API key, the browser falls back to TensorFlow.js MobileNet and a pixel-based contamination check.
+- **Vision:** TensorFlow.js and `@tensorflow-models/mobilenet` (lazy-loaded) in the browser, plus a pixel-based
+  grease and residue check. No photo is ever uploaded.
 - **Backend:** Node.js and Express. Passwords are hashed with scrypt and logins use HMAC-signed tokens (no extra crypto dependencies).
 - **Database:** PostgreSQL when `DATABASE_URL` is set. Otherwise a JSON file store is used, so there is zero setup for local development.
 
@@ -82,9 +82,6 @@ wiped on every restart, so data goes in a free [Neon](https://neon.tech) Postgre
 2. **Render:** sign up with GitHub, then **New → Blueprint**, and pick this repository. When it asks for
    `DATABASE_URL`, paste the Neon string. Then click **Apply**.
 3. When the deploy finishes, the site is live at `https://ecosort-XXXX.onrender.com`. Tables are created automatically.
-4. **Photo checks:** create an API key at [console.anthropic.com](https://console.anthropic.com), then in Render open
-   the service, go to **Environment** and set `ANTHROPIC_API_KEY`. Without it, scanning uses the on-device model
-   and bin checks are off.
 
 Free Render services sleep after about 15 minutes without visitors. The first visit after that takes roughly a minute to wake up.
 
@@ -95,30 +92,10 @@ npm test                                             # rules engine, vision heur
 TEST_DATABASE_URL=postgres://… npm test              # also runs the API suite against PostgreSQL
 ```
 
-## How photo checks work
+## How scanning works
 
-With `ANTHROPIC_API_KEY` set, the browser shrinks each photo to 1024px and sends it to the server, which asks Claude
-to fill in a fixed JSON schema (`server/vision.js`):
-
-- **Item check:** which of the app's rule items it is (one of a fixed list of ids), how confident it is, and whether it
-  is clean, lightly contaminated (split the pizza box) or heavily contaminated, with what it saw and where.
-- **Bin check:** whether the bin is ready, and a list of problems (plastic bags, bagged recyclables, food, greasy paper,
-  tanglers, batteries and so on), each with where it is and what to do.
-
-The system prompt carries the county rules, and text inside photos is treated as part of the picture, never as
-instructions. Photos are not stored by the app.
-
-**Cost:** each check is one request, roughly 2 to 3 cents with the default model and `low` effort (an estimate, not
-measured). Checks are capped per day: 40 per signed-in player and 8 per guest IP. `VISION_MODEL` and
-`VISION_EFFORT` change the model and effort.
-
-**Bin night points:** a check only counts from noon the day before pickup until 10 a.m. pickup day (Eastern), with
-the county's holiday slide rule applied. A clean bin earns 20 points once per pickup, 10 more if an earlier check that
-night found problems that were fixed, and 5 more per week of streak (up to 25).
-
-### Offline fallback
-
-Without an API key, MobileNet tells us **what** the item is. `shared/vision/contamination.js` then decides **how clean** it is:
+MobileNet tells us **what** the item is. When it is not confident (it has no class for soda cans, for example), the
+app asks the player to pick the item from a few likely choices. `shared/vision/contamination.js` then decides **how clean** it is:
 
 - **Grease (cardboard and paper):** the photo is split into a 6×6 grid. Oil makes paper fibers translucent, so a grease stain is
   *darker and more saturated* than clean cardboard. A shadow is darker but not more saturated, so shadows are not counted.
@@ -128,6 +105,10 @@ Without an API key, MobileNet tells us **what** the item is. `shared/vision/cont
   possible food or liquid residue. The app always shows the county's *empty, rinsed, clean* rule.
 
 Both checks are heuristics. People can correct the item or its condition in one tap.
+
+**Bin night points:** a check only counts from noon the day before pickup until 10 a.m. pickup day (Eastern), with
+the county's holiday slide rule applied. A finished checklist earns 20 points once per pickup, plus 5 per week of
+streak (up to 25).
 
 ## Anti-farming and youth safety
 

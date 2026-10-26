@@ -1,69 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
-import { useConfig } from '../lib/config.js';
-import { loadImageFile, toCanvas, toJpegDataUrl } from '../lib/vision.js';
 import { WEEKDAYS, PICKUP_DAYS } from '../../shared/pickup.js';
-import { POINTS } from '../../shared/points.js';
+import { BIN_CHECKLIST, POINTS } from '../../shared/points.js';
 
 const COUNTY_LOOKUP = 'https://www2.montgomerycountymd.gov/DEPcollectionday/collectionday.aspx';
 
-const PROBLEM_LABEL = {
-  plastic_bag: 'Plastic bag',
-  bagged_recyclables: 'Bagged recyclables',
-  plastic_film: 'Plastic film',
-  food_or_liquid: 'Food or liquid',
-  greasy_paper: 'Greasy paper',
-  foam: 'Foam',
-  tangler: 'Tangler',
-  battery_or_electronics: 'Battery or electronics',
-  hazardous: 'Hazardous',
-  wrong_bin: 'Wrong bin',
-  not_recyclable: 'Not recyclable',
-  other: 'Other',
-};
-
-function Verdict({ result }) {
-  if (result.verdict === 'ready') {
-    return (
-      <div className="rounded-3xl bg-brand-400 p-6 text-center">
-        <p className="font-heading text-4xl font-bold">Ready to roll!</p>
-        <p className="mt-1">Your bin is good to go out.</p>
-      </div>
-    );
-  }
-  if (result.verdict === 'fix_first') {
-    return (
-      <div className="overflow-hidden rounded-3xl border-2 border-ink bg-white">
-        <div className="stripe h-3" />
-        <div className="p-5 text-center">
-          <p className="font-heading text-4xl font-bold">Fix first</p>
-          <p className="mt-1">
-            {result.problems.length === 1 ? '1 thing needs' : `${result.problems.length} things need`} to come out.
-          </p>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="card p-5 text-center">
-      <p className="font-heading text-3xl font-bold">Can't tell</p>
-      <p className="mt-1">Open the lid all the way and take the photo from above, with good light.</p>
-    </div>
-  );
-}
-
 export default function BinNight() {
   const { user, refresh } = useAuth();
-  const config = useConfig();
   const [me, setMe] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [photo, setPhoto] = useState(null);
-  const [check, setCheck] = useState(null);
+  const [checked, setChecked] = useState([]);
+  const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const fileRef = useRef(null);
 
   useEffect(() => {
     if (user) refresh().then(setMe);
@@ -83,18 +34,15 @@ export default function BinNight() {
     }
   };
 
-  const onFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
+  const toggle = (id) => setChecked((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  const allDone = checked.length === BIN_CHECKLIST.length;
+
+  const submit = async () => {
     setError(null);
-    setCheck(null);
     setBusy(true);
     try {
-      const image = toJpegDataUrl(toCanvas(await loadImageFile(file), 1600));
-      setPhoto(image);
-      const out = await api('/bin-checks', { method: 'POST', body: { image } });
-      setCheck(out);
+      const out = await api('/bin-checks', { method: 'POST', body: { checklist: checked } });
+      setResult(out);
       setMe(await refresh());
     } catch (err) {
       setError(err.message);
@@ -108,8 +56,8 @@ export default function BinNight() {
       <div className="mx-auto max-w-xl space-y-4 text-center">
         <h1 className="text-4xl">Bin night</h1>
         <p className="text-lg">
-          The night before trash day, snap a photo of your recycling bin. We'll tell you what has to come out, and a clean bin
-          earns {POINTS.BIN_CHECK} points.
+          The night before trash day, run a quick check on your recycling bin. A clean bin earns {POINTS.BIN_CHECK} points, and
+          more for every week in a row.
         </p>
         <Link to="/register" className="btn-primary btn-big">Join to start</Link>
       </div>
@@ -121,8 +69,8 @@ export default function BinNight() {
       <div>
         <h1 className="text-4xl">Bin night</h1>
         <p className="mt-1">
-          The night before pickup, snap your open recycling bin. A clean bin earns {POINTS.BIN_CHECK} points, and more for every
-          week in a row.
+          The night before pickup, open your recycling bin and check these five things. A clean bin earns {POINTS.BIN_CHECK}{' '}
+          points, and more for every week in a row.
         </p>
       </div>
 
@@ -168,55 +116,46 @@ export default function BinNight() {
         </div>
       )}
 
-      {config && !config.photoChecks ? (
-        <div className="card p-5 text-center text-ash">Bin checks are not turned on for this site yet.</div>
-      ) : (
-        <div className="text-center">
-          <button className="btn-primary btn-big w-full" onClick={() => fileRef.current?.click()} disabled={busy}>
-            {busy ? 'Checking your bin...' : check ? 'Check again' : 'Snap my bin'}
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
-          <p className="mt-2 text-xs text-ash">Lid all the way open, photo from above. Keep people out of the shot.</p>
-          {error && <p className="mt-2 font-semibold text-stop">{error}</p>}
+      {result?.counted ? (
+        <div className="rounded-3xl bg-brand-400 p-6 text-center">
+          <p className="font-heading text-4xl font-bold">+{result.points} points</p>
+          <p className="font-heading text-xl font-semibold">{result.streak}-week streak. Your bin is ready to roll!</p>
         </div>
-      )}
-
-      {photo && (busy || check) && <img src={photo} alt="Your bin" className="max-h-72 w-full rounded-3xl bg-ink object-contain" />}
-
-      {check && (
-        <div className="space-y-4">
-          <Verdict result={check.result} />
-
-          {check.result.problems.length > 0 && (
-            <ol className="space-y-3">
-              {check.result.problems.map((p, i) => (
-                <li key={`${p.kind}-${i}`} className="card p-4">
-                  <span className="pill bg-stop text-white">{PROBLEM_LABEL[p.kind]}</span>
-                  <p className="mt-2 font-semibold">{p.what}</p>
-                  <p className="text-sm text-ash">Where: {p.where}</p>
-                  <p className="mt-1">{p.fix}</p>
+      ) : (
+        <div className="card p-5">
+          <p className="font-heading text-xl font-semibold">Bin check</p>
+          <ul className="mt-3 space-y-2">
+            {BIN_CHECKLIST.map((c) => {
+              const on = checked.includes(c.id);
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggle(c.id)}
+                    aria-pressed={on}
+                    className={`flex w-full items-start gap-3 rounded-2xl border-2 p-3 text-left ${on ? 'border-brand-400 bg-brand-50' : 'border-brand-100 bg-white'}`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 font-bold ${
+                        on ? 'border-brand-700 bg-brand-700 text-white' : 'border-brand-200'
+                      }`}
+                    >
+                      {on ? '\u2713' : ''}
+                    </span>
+                    <span>
+                      <span className="block font-heading font-semibold">{c.label}</span>
+                      <span className="block text-sm text-ash">{c.detail}</span>
+                    </span>
+                  </button>
                 </li>
-              ))}
-            </ol>
-          )}
-
-          {check.result.looks_good.length > 0 && (
-            <div className="card p-4">
-              <p className="font-heading text-lg font-semibold">Nice work on</p>
-              <ul className="mt-1 list-disc pl-5">
-                {check.result.looks_good.map((g) => <li key={g}>{g}</li>)}
-              </ul>
-            </div>
-          )}
-
-          {check.counted ? (
-            <div className="rounded-3xl bg-brand-400 p-5 text-center">
-              <p className="font-heading text-4xl font-bold">+{check.points} points</p>
-              <p className="font-heading text-lg font-semibold">{check.streak}-week streak</p>
-            </div>
-          ) : (
-            check.note && <p className="card p-4 text-center font-semibold">{check.note}</p>
-          )}
+              );
+            })}
+          </ul>
+          <button className="btn-primary btn-big mt-4 w-full" onClick={submit} disabled={!allDone || busy}>
+            {busy ? 'Saving...' : allDone ? 'My bin is ready!' : `${checked.length} of ${BIN_CHECKLIST.length} checked`}
+          </button>
+          {error && <p className="mt-2 font-semibold text-stop">{error}</p>}
+          {result?.note && <p className="mt-3 text-center font-semibold">{result.note}</p>}
         </div>
       )}
     </div>

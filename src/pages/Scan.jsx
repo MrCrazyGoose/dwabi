@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { decide, getItem } from '../../shared/rules.js';
-import { QUICK_PICKS, matchPredictions, suggestItems } from '../../shared/vision/classMap.js';
+import { matchPredictions, suggestItems } from '../../shared/vision/classMap.js';
 import { analyzeImage } from '../../shared/vision/contamination.js';
 import { POINTS } from '../../shared/points.js';
 import { levelFor } from '../../shared/progress.js';
-import { classify, cropToGuide, loadModel, loadImageFile, toCanvas, toJpegDataUrl } from '../lib/vision.js';
-import { useConfig } from '../lib/config.js';
+import { classify, cropToGuide, loadModel, loadImageFile, toCanvas } from '../lib/vision.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import ItemSearch from '../components/ItemSearch.jsx';
@@ -106,24 +105,19 @@ export default function Scan() {
   const [liveLabel, setLiveLabel] = useState(null);
   const [logState, setLogState] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [ai, setAi] = useState(null); // result from the server's AI photo check
-  const [aiError, setAiError] = useState(null);
-  const config = useConfig();
-  const useAi = Boolean(config?.photoChecks);
   const overlayRef = useRef(null);
   const fileRef = useRef(null);
 
   const cameraActive = mode === 'camera' && !capture;
   const { videoRef, error: cameraError, ready: cameraReady } = useCamera(cameraActive);
 
-  // Without the server's AI check, download the on-device model instead.
+  // Start downloading the in-browser object recognizer as soon as the page opens.
   useEffect(() => {
-    if (!config || useAi) return;
     setModelState('loading');
     loadModel()
       .then(() => setModelState('ready'))
       .catch(() => setModelState('error'));
-  }, [config, useAi]);
+  }, []);
 
   // Live preview label while the camera is running.
   useEffect(() => {
@@ -150,18 +144,14 @@ export default function Scan() {
 
   const item = itemId ? getItem(itemId) : null;
 
-  // The AI result applies only while its item is the one selected.
-  const aiForItem = ai && item && ai.itemId === item.id ? ai : null;
-  const aiLevel = aiForItem && ['clean', 'light', 'heavy'].includes(aiForItem.contamination) ? aiForItem.contamination : null;
-
   const analysis = useMemo(() => {
-    if (!capture || !item?.contaminationCheck || ai) return null;
+    if (!capture || !item?.contaminationCheck) return null;
     const c = capture.canvas;
     const imageData = c.getContext('2d').getImageData(0, 0, c.width, c.height);
     return analyzeImage(imageData, item.contaminationCheck);
-  }, [capture, item, ai]);
+  }, [capture, item]);
 
-  const level = override || aiLevel || analysis?.level || null;
+  const level = override || analysis?.level || null;
   const verdict = useMemo(() => (itemId ? decide(itemId, level ? { level } : null) : null), [itemId, level]);
 
   useEffect(() => {
@@ -175,28 +165,19 @@ export default function Scan() {
     setItemId(null);
     setOverride(null);
     setLogState(null);
-    setAi(null);
-    setAiError(null);
     setBusy(true);
     try {
-      if (useAi) {
-        const out = await api('/vision/item', { method: 'POST', body: { image: toJpegDataUrl(canvas) } });
-        setAi(out);
-        if (out.itemId && out.confidence !== 'low' && out.photoQuality === 'good') setItemId(out.itemId);
-      } else {
-        const preds = await classify(canvas, 5);
-        setPredictions(preds);
-        const m = matchPredictions(preds);
-        setMatch(m);
-        if (m) setItemId(m.itemId);
-      }
-    } catch (err) {
-      if (useAi) setAiError(err.message);
-      else setModelState('error');
+      const preds = await classify(canvas, 5);
+      setPredictions(preds);
+      const m = matchPredictions(preds);
+      setMatch(m);
+      if (m) setItemId(m.itemId);
+    } catch {
+      setModelState('error');
     } finally {
       setBusy(false);
     }
-  }, [useAi]);
+  }, []);
 
   const takePhoto = () => {
     const video = videoRef.current;
@@ -223,8 +204,6 @@ export default function Scan() {
     setItemId(null);
     setOverride(null);
     setLogState(null);
-    setAi(null);
-    setAiError(null);
   };
 
   const chooseItem = (it) => {
@@ -253,16 +232,7 @@ export default function Scan() {
   };
 
   const needsManualLevel =
-    item?.contaminationCheck &&
-    !aiLevel &&
-    (!capture || analysis?.level === 'unknown' || item.contaminationCheck === 'residue');
-
-  const PHOTO_HINTS = {
-    too_dark: 'The photo is too dark. Try again with more light.',
-    too_blurry: 'The photo is blurry. Hold still and try again.',
-    too_far: 'The item is too small in the photo. Move closer.',
-    no_item: 'No item was found in the photo.',
-  };
+    item?.contaminationCheck && (!capture || analysis?.level === 'unknown' || item.contaminationCheck === 'residue');
 
   return (
     <div className="mx-auto max-w-xl space-y-5">
@@ -331,18 +301,16 @@ export default function Scan() {
         )}
         <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
       </div>
-      {!useAi && modelState === 'error' && (
+      {modelState === 'loading' && <p className="text-center text-sm text-ash">Loading the object recognizer...</p>}
+      {modelState === 'error' && (
         <p className="text-center text-sm text-ash">Photo recognition is unavailable right now. Search for the item instead.</p>
       )}
-
-      {aiError && <p className="text-center font-semibold text-stop">{aiError}</p>}
-      {ai && PHOTO_HINTS[ai.photoQuality] && !item && <p className="text-center font-semibold text-stop">{PHOTO_HINTS[ai.photoQuality]}</p>}
 
       {capture && !busy && !match && !item && (
         <div className="card p-5">
           <p className="font-heading text-xl font-semibold">Hmm, which one is it?</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {(ai ? [...new Set([ai.itemId, ...QUICK_PICKS].filter(Boolean))].slice(0, 8) : suggestItems(predictions)).map((id) => (
+            {suggestItems(predictions).map((id) => (
               <button key={id} type="button" className="btn-secondary !px-4 !py-1.5 !text-base" onClick={() => chooseItem(getItem(id))}>
                 {getItem(id).name.replace(/ \(.*\)$/, '')}
               </button>
@@ -370,12 +338,23 @@ export default function Scan() {
         </div>
       )}
 
-      {aiForItem && item?.contaminationCheck && !override && aiForItem.findings.length > 0 && (
+      {capture && analysis && !override && analysis.level !== 'unknown' && (
         <div className="card p-5">
-          <p className="font-heading text-xl font-semibold">We spotted</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            {aiForItem.findings.map((f) => <li key={f}>{f}</li>)}
-          </ul>
+          <p className="font-heading text-xl font-semibold">Grease and food check</p>
+          {analysis.kind === 'grease' ? (
+            <p className="mt-1">
+              {analysis.flaggedCells === 0
+                ? 'No grease spotted. Nice!'
+                : `${analysis.flaggedCells} of ${analysis.materialCells} sections look greasy. The red squares on your photo go in the trash.`}
+            </p>
+          ) : (
+            <p className="mt-1">
+              {analysis.level === 'light' ? 'Some spots look like leftover food. They are marked in red.' : 'Looks clean. Give it a rinse anyway.'}
+            </p>
+          )}
+          <button className="mt-2 text-sm font-semibold text-brand-700 underline" onClick={() => setOverride(analysis.level)}>
+            Not right? Set it yourself
+          </button>
         </div>
       )}
 
