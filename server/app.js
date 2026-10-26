@@ -5,10 +5,10 @@ import { hashPassword, verifyPassword, signToken, verifyToken, rateLimiter } fro
 import { getCompetition, isWithin } from './competition.js';
 import { weekKey, questionsForWeek, publicQuestion } from './quizBank.js';
 import { getItem, searchItems, decide } from '../shared/rules.js';
-import { POINTS, LIMITS, BATCH_CHECKLIST, BATCH_FIELDS, streakBonus } from '../shared/points.js';
-import { PICKUP_DAYS, addDays, applySlide, dateKey, eastern, formatDate, inCheckWindow, nextPickup } from '../shared/pickup.js';
+import { POINTS, LIMITS, BATCH_CHECKLIST, BATCH_FIELDS, BIN_CHECKLIST, streakBonus } from '../shared/points.js';
+import { PICKUP_DAYS, addDays, applySlide, dateKey, formatDate, inCheckWindow, nextPickup } from '../shared/pickup.js';
 import { BRAND_NAME } from '../shared/brand.js';
-import { VisionError } from './vision.js';
+import { dayStreak, earnedBadges, levelFor } from '../shared/progress.js';
 import { pickupCalendar } from './ics.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -38,20 +38,15 @@ function pickupInfo(pickup) {
   return pickup && { key: pickup.key, label: formatDate(pickup.date), holiday: pickup.holiday };
 }
 
-// `vision` is the photo checker from server/vision.js (null when no API key
-// is configured). `now` is injectable for tests.
-export function createApp({ store, secret, env = process.env, staticDir, vision = null, now = () => new Date() } = {}) {
+// `now` is injectable for tests.
+export function createApp({ store, secret, env = process.env, staticDir, now = () => new Date() } = {}) {
   if (!store) throw new Error('createApp requires a store');
   if (!secret) throw new Error('createApp requires a secret');
 
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  // Photo routes take larger bodies; everything else stays small.
-  const smallJson = express.json({ limit: '32kb' });
-  const photoJson = express.json({ limit: '5mb' });
-  const PHOTO_ROUTES = ['/api/vision/item', '/api/bin-checks'];
-  app.use((req, res, next) => (PHOTO_ROUTES.includes(req.path) ? next() : smallJson(req, res, next)));
+  app.use(express.json({ limit: '32kb' }));
 
   // Serialize point-awarding requests per user so daily caps and the
   // one-quiz-per-week rule cannot be bypassed with parallel requests.
@@ -81,46 +76,11 @@ export function createApp({ store, secret, env = process.env, staticDir, vision 
     next();
   });
 
-  // Like requireAuth, but lets guests through with req.user unset.
-  const optionalAuth = wrap(async (req, res, next) => {
-    const header = req.get('authorization') || '';
-    const userId = header.startsWith('Bearer ') && verifyToken(header.slice(7), secret);
-    if (userId) req.user = await store.getUserById(userId);
-    next();
-  });
-
-  // AI photo checks cost money per call, so cap them per person per day.
-  const photoUsage = new Map();
-  function takePhotoCheck(req) {
-    const e = eastern(now());
-    const day = `${e.y}-${e.m}-${e.d}`;
-    const key = req.user ? `u:${req.user.id}` : `ip:${req.ip}`;
-    const limit = req.user ? LIMITS.PHOTO_CHECKS_PER_DAY : LIMITS.PHOTO_CHECKS_PER_DAY_GUEST;
-    const entry = photoUsage.get(key);
-    const count = entry && entry.day === day ? entry.count : 0;
-    if (count >= limit) {
-      throw new HttpError(429, req.user ? 'That is all the photo checks for today. Search for the item instead.' : 'Sign up to keep using photo checks today.');
-    }
-    photoUsage.set(key, { day, count: count + 1 });
-  }
-
-  async function runVision(fn) {
-    if (!vision) throw new HttpError(503, 'Photo checking is not set up on this server.');
-    try {
-      return await fn();
-    } catch (err) {
-      if (err instanceof VisionError) throw new HttpError(err.status, err.message);
-      throw err;
-    }
-  }
-
   const authLimiter = rateLimiter({ windowMs: 10 * 60 * 1000, max: Number(env.AUTH_RATE_LIMIT || 30) });
 
   // ---------- Public reference data ----------
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
-
-  app.get('/api/config', (req, res) => res.json({ photoChecks: Boolean(vision) }));
 
   app.get('/api/competition', (req, res) => res.json({ competition: getCompetition(env) }));
 
@@ -213,6 +173,7 @@ export function createApp({ store, secret, env = process.env, staticDir, vision 
       const week = weekKey();
       const quizThisWeek = events.find((e) => e.type === 'quiz' && e.meta?.week === week);
 
+      const dailyStreak = dayStreak(events, now());
       const pickup = nextPickup(req.user.pickupDay, now());
       const lastReady = events.find((e) => e.type === 'bincheck' && e.meta?.verdict === 'ready');
       // The streak is alive if the last counted check was for this pickup or the one before it.
@@ -237,7 +198,10 @@ export function createApp({ store, secret, env = process.env, staticDir, vision 
           quizTakenThisWeek: Boolean(quizThisWeek),
           binStreak: streak,
           binCheckedThisPickup: Boolean(lastReady && pickup && lastReady.meta.pickupKey === pickup.key),
+          dayStreak: dailyStreak,
         },
+        level: levelFor(competitionPoints),
+        badges: earnedBadges(events, { dayStreak: dailyStreak }),
         pickup: pickupInfo(pickup),
         recent: events.slice(0, 15),
       });
@@ -372,26 +336,6 @@ export function createApp({ store, secret, env = process.env, staticDir, vision 
     }),
   );
 
-  // ---------- Photo checks ----------
-
-  app.post(
-    '/api/vision/item',
-    photoJson,
-    optionalAuth,
-    wrap(async (req, res) => {
-      takePhotoCheck(req);
-      const out = await runVision(() => vision.checkItem(req.body?.image));
-      res.json({
-        itemId: out.item_id === 'unknown' ? null : out.item_id,
-        whatISee: out.what_i_see,
-        confidence: out.confidence,
-        contamination: out.contamination,
-        findings: out.findings,
-        photoQuality: out.photo_quality,
-      });
-    }),
-  );
-
   // ---------- Bin night ----------
 
   app.put(
@@ -416,54 +360,42 @@ export function createApp({ store, secret, env = process.env, staticDir, vision 
 
   app.post(
     '/api/bin-checks',
-    photoJson,
     requireAuth,
     wrap(async (req, res) => {
-      takePhotoCheck(req);
-      const result = await runVision(() => vision.checkBin(req.body?.image));
+      const checked = Array.isArray(req.body?.checklist) ? req.body.checklist : [];
+      const missing = BIN_CHECKLIST.filter((c) => !checked.includes(c.id));
+      if (missing.length) throw new HttpError(400, `Finish the checklist first: ${missing.map((c) => c.label.toLowerCase()).join(', ')}.`);
+
       const at = now();
       const pickup = nextPickup(req.user.pickupDay, at);
-
-      const response = { result, pickup: pickupInfo(pickup), points: 0, streak: 0, counted: false, note: null };
+      const response = { pickup: pickupInfo(pickup), points: 0, streak: 0, counted: false, note: null };
       if (!pickup) {
-        response.note = 'Set your pickup day to earn points for bin checks.';
+        response.note = 'Set your trash day to earn points for bin night.';
         return res.json(response);
       }
       if (!inCheckWindow(pickup.date, at)) {
-        response.note = `Checks earn points from noon the day before pickup until 10 a.m. pickup day. Your next pickup is ${formatDate(pickup.date)}.`;
-        return res.json(response);
-      }
-      if (result.photo_quality !== 'good' || result.bin_type === 'unclear' || result.verdict === 'unclear') {
-        response.note = 'The photo did not show the inside of the bin clearly enough. Open the lid and try again with more light.';
+        response.note = `Bin night checks count from noon the day before pickup until 10 a.m. pickup day. Your next pickup is ${formatDate(pickup.date)}.`;
         return res.json(response);
       }
 
       await withUserLock(req.user.id, async () => {
-        const events = await store.listUserEvents(req.user.id, { since: new Date(at.getTime() - 3 * DAY_MS).toISOString() });
-        const thisPickup = events.filter((e) => e.type === 'bincheck' && e.meta?.pickupKey === pickup.key);
-        if (thisPickup.some((e) => e.meta.verdict === 'ready')) {
-          response.note = 'This pickup is already counted. See you next bin night.';
-          return;
-        }
-        const meta = {
-          pickupKey: pickup.key,
-          verdict: result.verdict,
-          binType: result.bin_type,
-          problems: result.problems.map((p) => p.kind),
-        };
-        if (result.verdict === 'fix_first') {
-          await store.addEvent({ userId: req.user.id, type: 'bincheck', points: 0, meta, createdAt: at.toISOString() });
-          response.note = 'Take those out, then check again to get the points.';
-          return;
-        }
-        // Ready: work out the streak from the previous pickup.
-        const prevKey = dateKey(applySlide(addDays(pickup.scheduled, -7)).date);
         const history = await store.listUserEvents(req.user.id, { since: new Date(at.getTime() - 10 * DAY_MS).toISOString() });
-        const prev = history.find((e) => e.type === 'bincheck' && e.meta?.verdict === 'ready' && e.meta.pickupKey === prevKey);
+        const checks = history.filter((e) => e.type === 'bincheck' && e.meta?.verdict === 'ready');
+        if (checks.some((e) => e.meta.pickupKey === pickup.key)) {
+          response.note = 'This week is already done. See you next bin night!';
+          return;
+        }
+        const prevKey = dateKey(applySlide(addDays(pickup.scheduled, -7)).date);
+        const prev = checks.find((e) => e.meta.pickupKey === prevKey);
         const streak = prev ? prev.meta.streak + 1 : 1;
-        const fixed = thisPickup.some((e) => e.meta.verdict === 'fix_first');
-        const points = POINTS.BIN_CHECK + streakBonus(streak) + (fixed ? POINTS.BIN_FIX_BONUS : 0);
-        await store.addEvent({ userId: req.user.id, type: 'bincheck', points, meta: { ...meta, streak, fixed }, createdAt: at.toISOString() });
+        const points = POINTS.BIN_CHECK + streakBonus(streak);
+        await store.addEvent({
+          userId: req.user.id,
+          type: 'bincheck',
+          points,
+          meta: { pickupKey: pickup.key, verdict: 'ready', streak },
+          createdAt: at.toISOString(),
+        });
         Object.assign(response, { points, streak, counted: true });
       });
       res.json(response);

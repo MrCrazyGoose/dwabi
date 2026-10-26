@@ -6,37 +6,20 @@ import path from 'node:path';
 import { createApp } from '../server/app.js';
 import { FileStore } from '../server/store/fileStore.js';
 import { PgStore } from '../server/store/pgStore.js';
-import { POINTS, LIMITS } from '../shared/points.js';
+import { BIN_CHECKLIST, POINTS } from '../shared/points.js';
 
-const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const ENV = { COMPETITION_START: '2000-01-01', COMPETITION_END: '2999-12-31', AUTH_RATE_LIMIT: '1000' };
+const ALL = BIN_CHECKLIST.map((c) => c.id);
 
 let clock = new Date('2026-10-14T23:00:00Z'); // Wed 7 p.m. ET, eve of a Thursday pickup
-let nextBin;
-const fakeVision = {
-  async checkItem() {
-    return { item_id: 'aluminum-can', what_i_see: 'soda can', confidence: 'high', contamination: 'clean', findings: [], photo_quality: 'good' };
-  },
-  async checkBin() {
-    return nextBin;
-  },
-};
-const READY = { bin_type: 'blue_bin', verdict: 'ready', problems: [], looks_good: ['Loose cans'], photo_quality: 'good' };
-const BAGGED = {
-  bin_type: 'blue_bin',
-  verdict: 'fix_first',
-  problems: [{ kind: 'plastic_bag', what: 'Grocery bag', where: 'top', fix: 'Store drop-off' }],
-  looks_good: [],
-  photo_quality: 'good',
-};
-
 let server, base, dir, store;
+
 before(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'ecosort-bn-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'mocobin-bn-'));
   // Runs against PostgreSQL when TEST_DATABASE_URL is set.
   store = process.env.TEST_DATABASE_URL ? new PgStore(process.env.TEST_DATABASE_URL) : new FileStore(path.join(dir, 'db.json'));
   await store.init();
-  const app = createApp({ store, secret: 's', env: ENV, vision: fakeVision, now: () => clock });
+  const app = createApp({ store, secret: 's', env: ENV, now: () => clock });
   server = app.listen(0);
   await new Promise((r) => server.once('listening', r));
   base = `http://127.0.0.1:${server.address().port}/api`;
@@ -61,18 +44,9 @@ async function signup(name) {
   return r.body.token;
 }
 
-test('config reports photo checks on, and item checks work for guests', async () => {
-  assert.deepEqual((await call('/config')).body, { photoChecks: true });
-  const r = await call('/vision/item', { method: 'POST', body: { image: PNG } });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.itemId, 'aluminum-can');
-});
-
-test('large photos are accepted on photo routes but not elsewhere', async () => {
-  const big = 'x'.repeat(100 * 1024);
-  assert.equal((await call('/auth/login', { method: 'POST', body: { username: big, password: big } })).status, 413);
-  const r = await call('/vision/item', { method: 'POST', body: { image: PNG, pad: big } });
-  assert.equal(r.status, 200);
+test('photo check routes are gone', async () => {
+  assert.equal((await call('/vision/item', { method: 'POST', body: {} })).status, 404);
+  assert.equal((await call('/config')).status, 404);
 });
 
 test('pickup day setup, calendar file and validation', async () => {
@@ -88,86 +62,56 @@ test('pickup day setup, calendar file and validation', async () => {
   assert.equal((await call('/pickup/calendar.ics?day=9')).status, 400);
 });
 
-test('bin checks: no points without a pickup day or outside the window', async () => {
+test('bin night: the whole checklist is required, plus a pickup day and the check window', async () => {
   const token = await signup('noday');
-  nextBin = READY;
-  let r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
-  assert.equal(r.status, 200);
+  assert.equal((await call('/bin-checks', { method: 'POST', body: { checklist: ALL } })).status, 401);
+
+  let r = await call('/bin-checks', { method: 'POST', token, body: { checklist: ALL.slice(1) } });
+  assert.equal(r.status, 400);
+  assert.match(r.body.error, /no plastic bags/);
+
+  r = await call('/bin-checks', { method: 'POST', token, body: { checklist: ALL } });
   assert.equal(r.body.points, 0);
-  assert.match(r.body.note, /Set your pickup day/);
+  assert.match(r.body.note, /Set your trash day/);
 
   await call('/me/pickup', { method: 'PUT', token, body: { day: 2 } }); // Tuesday: next is Oct 20
-  r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
+  r = await call('/bin-checks', { method: 'POST', token, body: { checklist: ALL } });
   assert.equal(r.body.points, 0);
   assert.match(r.body.note, /noon the day before/);
-  assert.equal((await call('/bin-checks', { method: 'POST', body: { image: PNG } })).status, 401);
 });
 
-test('bin checks: fix first, then ready earns base + fix bonus, once per pickup, streak next week', async () => {
+test('bin night: points once per pickup, streak next week, reset after a skipped week', async () => {
+  clock = new Date('2026-10-14T23:00:00Z');
   const token = await signup('sam');
   await call('/me/pickup', { method: 'PUT', token, body: { day: 4 } });
 
-  nextBin = BAGGED;
-  let r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
-  assert.equal(r.body.result.verdict, 'fix_first');
-  assert.equal(r.body.points, 0);
-  assert.match(r.body.note, /check again/);
-
-  nextBin = READY;
-  r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
+  let r = await call('/bin-checks', { method: 'POST', token, body: { checklist: ALL } });
   assert.equal(r.body.counted, true);
   assert.equal(r.body.streak, 1);
-  assert.equal(r.body.points, POINTS.BIN_CHECK + POINTS.BIN_FIX_BONUS);
+  assert.equal(r.body.points, POINTS.BIN_CHECK);
 
-  r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
+  r = await call('/bin-checks', { method: 'POST', token, body: { checklist: ALL } });
   assert.equal(r.body.points, 0);
-  assert.match(r.body.note, /already counted/);
+  assert.match(r.body.note, /already done/);
 
   let me = await call('/me', { token });
   assert.equal(me.body.stats.binStreak, 1);
   assert.equal(me.body.stats.binCheckedThisPickup, true);
+  assert.ok(me.body.badges.find((b) => b.id === 'bin-night').earned);
 
-  // Next week's eve.
   clock = new Date('2026-10-21T23:00:00Z');
-  r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
+  r = await call('/bin-checks', { method: 'POST', token, body: { checklist: ALL } });
   assert.equal(r.body.streak, 2);
   assert.equal(r.body.points, POINTS.BIN_CHECK + POINTS.STREAK_BONUS);
 
-  // Skip a week: streak resets.
   clock = new Date('2026-11-04T23:00:00Z');
   me = await call('/me', { token });
   assert.equal(me.body.stats.binStreak, 0);
-  r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
+  r = await call('/bin-checks', { method: 'POST', token, body: { checklist: ALL } });
   assert.equal(r.body.streak, 1);
 
-  // Veterans Day week: Thursday pickup slides to Friday, so Thursday evening is bin night.
+  // Veterans Day week: Thursday pickup slides to Friday, so Wednesday evening is not bin night.
   clock = new Date('2026-11-11T23:00:00Z');
-  r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
+  r = await call('/bin-checks', { method: 'POST', token, body: { checklist: ALL } });
   assert.match(r.body.note, /Friday, Nov 13/);
-
-  // Unclear photo earns nothing.
-  clock = new Date('2026-11-12T23:00:00Z');
-  nextBin = { ...READY, photo_quality: 'too_dark' };
-  r = await call('/bin-checks', { method: 'POST', token, body: { image: PNG } });
-  assert.equal(r.body.points, 0);
-  assert.match(r.body.note, /more light/);
-});
-
-test('guests are capped on photo checks per day', async () => {
-  clock = new Date('2026-12-01T15:00:00Z');
-  let last;
-  for (let i = 0; i < LIMITS.PHOTO_CHECKS_PER_DAY_GUEST + 1; i++) last = await call('/vision/item', { method: 'POST', body: { image: PNG } });
-  assert.equal(last.status, 429);
-});
-
-test('without a vision service, photo routes say so', async () => {
-  const app = createApp({ store, secret: 's', env: ENV });
-  const s = app.listen(0);
-  await new Promise((r) => s.once('listening', r));
-  const url = `http://127.0.0.1:${s.address().port}/api`;
-  const cfg = await (await fetch(`${url}/config`)).json();
-  assert.equal(cfg.photoChecks, false);
-  const r = await fetch(`${url}/vision/item`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: PNG }) });
-  assert.equal(r.status, 503);
-  s.close();
 });

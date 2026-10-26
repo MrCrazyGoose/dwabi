@@ -17,10 +17,6 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
-      # Turns on AI photo checks (scanner and bin night). Without it the
-      # scanner uses the on-device model and bin checks are unavailable.
-      - key: ANTHROPIC_API_KEY
-        sync: false
       - key: COMPETITION_NAME
         value: Fall 2026 Zero-Waste Challenge
       - key: COMPETITION_START

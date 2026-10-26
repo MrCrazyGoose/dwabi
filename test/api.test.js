@@ -69,6 +69,9 @@ function apiSuite(name, makeStore) {
       const me = await call('/me', { token: ok.body.token });
       assert.equal(me.status, 200);
       assert.equal(me.body.stats.competitionPoints, 0);
+      assert.equal(me.body.level.name, 'Rookie Sorter');
+      assert.equal(me.body.stats.dayStreak, 0);
+      assert.ok(me.body.badges.every((b) => !b.earned));
       assert.equal((await call('/me')).status, 401);
       assert.equal((await call('/me', { token: ok.body.token + 'x' })).status, 401);
     });
@@ -160,7 +163,6 @@ function apiSuite(name, makeStore) {
         assert.equal(p.school, undefined);
       });
       assert.equal(lb.body.schools, undefined);
-      assert.ok(lb.body.competition.prizes.length > 0);
       // Players with zero points (alex) are not listed.
       assert.ok(!names.includes('alex'));
     });

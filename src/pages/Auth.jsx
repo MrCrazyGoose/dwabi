@@ -3,11 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import { BRAND_DISCLAIMER } from '../../shared/brand.js';
 
-function AuthPanel({ title, children }) {
+function AuthCard({ title, children }) {
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="text-5xl">{title}</h1>
-      <div className="panel mt-6 p-5">{children}</div>
+    <div className="mx-auto max-w-sm">
+      <img src="/favicon.png" alt="" className="mx-auto h-20 w-20" />
+      <h1 className="mt-3 text-center text-4xl">{title}</h1>
+      <div className="card mt-5 p-6">{children}</div>
     </div>
   );
 }
@@ -25,7 +26,7 @@ export function Login() {
     setError(null);
     try {
       await login(form.username, form.password);
-      navigate('/dashboard');
+      navigate('/scan');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -34,7 +35,7 @@ export function Login() {
   };
 
   return (
-    <AuthPanel title="Log in">
+    <AuthCard title="Welcome back">
       <form onSubmit={submit} className="space-y-4">
         <div>
           <label className="label" htmlFor="username">Username</label>
@@ -47,10 +48,10 @@ export function Login() {
         {error && <p className="text-stop">{error}</p>}
         <button className="btn-primary w-full" disabled={busy}>{busy ? 'Logging in...' : 'Log in'}</button>
         <p className="text-center text-sm">
-          No account? <Link to="/register" className="font-semibold underline">Sign up</Link>
+          New here? <Link to="/register" className="font-semibold text-brand-700 underline">Join free</Link>
         </p>
       </form>
-    </AuthPanel>
+    </AuthCard>
   );
 }
 
@@ -69,7 +70,7 @@ export function Register() {
     setError(null);
     try {
       await register(form);
-      navigate('/dashboard');
+      navigate('/scan');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -78,12 +79,12 @@ export function Register() {
   };
 
   return (
-    <AuthPanel title="Sign up">
+    <AuthCard title="Join MocoBin">
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="label" htmlFor="displayName">Name on the leaderboard</label>
+          <label className="label" htmlFor="displayName">Leaderboard name</label>
           <input id="displayName" className="input" maxLength={30} value={form.displayName} onChange={set('displayName')} placeholder="Jordan K." required />
-          <p className="mt-1 text-sm text-ash">A first name and last initial, or a nickname. Not your full name.</p>
+          <p className="mt-1 text-sm text-ash">First name and last initial, or a nickname. Not your full name.</p>
         </div>
         <div>
           <label className="label" htmlFor="username">Username</label>
@@ -96,12 +97,12 @@ export function Register() {
         </div>
         {error && <p className="text-stop">{error}</p>}
         <button className="btn-primary w-full" disabled={busy}>{busy ? 'Creating account...' : 'Create account'}</button>
-        <p className="text-center text-sm text-ash">No email, phone number or full name needed.</p>
-        <p className="text-center text-sm text-ash">{BRAND_DISCLAIMER}</p>
+        <p className="text-center text-sm text-ash">No email or phone number needed.</p>
+        <p className="text-center text-xs text-ash">{BRAND_DISCLAIMER}</p>
         <p className="text-center text-sm">
-          Have an account? <Link to="/login" className="font-semibold underline">Log in</Link>
+          Have an account? <Link to="/login" className="font-semibold text-brand-700 underline">Log in</Link>
         </p>
       </form>
-    </AuthPanel>
+    </AuthCard>
   );
 }
